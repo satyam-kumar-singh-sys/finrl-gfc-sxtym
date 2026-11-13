@@ -3,6 +3,27 @@
 All times UTC. The live record must stay append-only: never edit past rows in
 `logs/` or `results/` — add a new entry here instead.
 
+## [1.3.4] — 2026-11-13
+### Added
+- `scripts/run_daily.py::position_rows` + `logs/positions.csv`: the closing
+  snapshot now also records what we actually hold (symbol, shares, average entry
+  price, market value, weight, unrealised P/L). `logs/trades.csv` records order
+  *submission* (`pending_new`, fill price not yet known); the positions log is the
+  fill evidence, so a reader can reconstruct both intent and result. 2 tests.
+- `docs/AUTOMATION_HEARTBEAT.md`: why GitHub's `schedule` trigger is best-effort,
+  the three-layer protection (crons → retry slots → external heartbeat), and a
+  complete click-by-click guide to the external heartbeat (fine-grained token
+  scoped to `Actions: write` on this one repository, `cron-job.org` POST body,
+  expected `204`, and how to verify). Includes the single-crontab-line equivalent
+  for an always-on machine.
+
+### Verified live 2026-11-13
+- First real rebalance executed 15:13:48Z (manual dispatch, event
+  `workflow_dispatch`): `guards: OK`, `code sha 5542f53cb781a6cc`, account
+  `PA3XNHACZ`, 2 orders — SPY buy 58.793728668, BIL buy 588.877963509 —
+  `action=rebalance drift=0.5390`. Target matched the signal exactly
+  (SPY 44.1% / BIL 53.9%).
+
 ## [1.3.3] — 2026-11-13
 ### Fixed (found live, before any trade was placed)
 - **The scheduled run never fired.** At 15:03 UTC on 2026-11-13 the repository had

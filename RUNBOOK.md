@@ -276,7 +276,11 @@ that under load *queued runs may be dropped*. It is best-effort, not a contract.
    `{"ref":"main"}` and a fine-grained token scoped to that one repository with
    **Actions: write**. Keep the token in the external service, never in this repo.
    This is the only setup that survives GitHub's own scheduler being unreliable.
-4. **Know the cost of silence.** A missed *session* is not fatal for a weekly
+4. **The full setup, with clicks:** `docs/AUTOMATION_HEARTBEAT.md` — the free
+   external cron (cron-job.org), the exact token permissions, the request body,
+   and how to verify it. That guide is what turns "mostly automated" into
+   "actually automated".
+5. **Know the cost of silence.** A missed *session* is not fatal for a weekly
    trend strategy. A missed *week* is: the 30-session requirement is wall-clock,
    so a dead scheduler wastes calendar days. Check the dashboard badge
    (`STALE` = snapshot older than 5 days) or run `python -m scripts.review`.

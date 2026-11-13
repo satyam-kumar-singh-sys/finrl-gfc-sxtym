@@ -217,3 +217,33 @@ def test_ran_recently_ignores_dry_runs_and_old_rows(tmp_path):
 def test_ran_recently_handles_a_missing_file(tmp_path):
     from scripts.run_daily import ran_recently
     assert ran_recently(tmp_path / "nope.csv") is None
+
+
+# --------------------------------------------------------------------------- #
+# Fill evidence: positions are logged once per session
+# --------------------------------------------------------------------------- #
+def test_position_rows_make_fill_evidence_readable():
+    from scripts.run_daily import position_rows
+
+    positions = [
+        {"symbol": "SPY", "qty": "58.793728668", "avg_entry_price": "757.79",
+         "market_value": "44551.20", "unrealized_pl": "12.40"},
+        {"symbol": "BIL", "qty": "588.877963509", "avg_entry_price": "91.51",
+         "market_value": "53895.30", "unrealized_pl": "0.00"},
+    ]
+    rows = position_rows(positions, equity=100_000.0, as_of="2026-11-13")
+    assert [r["symbol"] for r in rows] == ["SPY", "BIL"]
+    assert rows[0]["weight"] == pytest.approx(0.4455, abs=1e-4)
+    assert rows[0]["avg_entry_price"] == 757.79
+
+
+def test_position_rows_skip_closed_and_broken_entries():
+    from scripts.run_daily import position_rows
+
+    rows = position_rows(
+        [{"symbol": "SPY", "qty": "0", "market_value": "0"},
+         {"symbol": "BAD", "qty": "oops", "market_value": "1"},
+         {"symbol": "GLD", "qty": "10", "avg_entry_price": "300", "market_value": "3000"}],
+        equity=100_000.0, as_of="2026-11-13",
+    )
+    assert [r["symbol"] for r in rows] == ["GLD"]
