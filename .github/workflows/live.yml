@@ -48,7 +48,7 @@ permissions:
 
 jobs:
   trade:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: a surprise OS upgrade cannot change results
     timeout-minutes: 20         # kill a stuck run rather than burn minutes
     env:
       # The two secrets are injected here as environment variables. The Python
@@ -64,12 +64,12 @@ jobs:
       PYTHONUNBUFFERED: "1"     # show log lines immediately, not at the end
     steps:
       # 1. Download this repository onto the temporary machine.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       # 2. Install Python 3.11 and cache the downloads for speed.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
