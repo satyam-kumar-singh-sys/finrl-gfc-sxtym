@@ -28,7 +28,8 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write              # needed to commit the report back
+  contents: write              # commit the report back
+  issues: write                # open an issue when a health check fails
 
 jobs:
   report:
@@ -62,11 +63,36 @@ jobs:
       - name: Build report
         run: python -m scripts.report || echo "not enough history yet — will retry tomorrow"
 
+      # Health checks: fresh data, run cadence, drawdown budget, trading
+      # activity, signal sanity. `|| true` on purpose — a failing check must
+      # still publish the report and the dashboard; the failure is visible in
+      # results/health.md and raises an issue in the next step.
+      - name: Health checks
+        run: python -m scripts.monitor --quiet || true
+
+      # Rebuild the single-file public dashboard served by GitHub Pages.
+      - name: Build dashboard
+        run: python -m scripts.dashboard
+
+      # Open an issue if a health check failed, so the repo itself is the alert
+      # (watch "Issues" and GitHub emails you). Silently skipped when healthy.
+      - name: Raise issue when unhealthy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if python -m scripts.monitor --quiet; then
+            echo "healthy — no issue raised"
+          else
+            gh issue create \
+              --title "Bot health check failed $(date -u +%Y-%m-%d)" \
+              --body-file results/health.md || true
+          fi
+
       - name: Publish report
         run: |
           git config user.name  "ata-trading-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add results figs
+          git add results figs docs
           if git diff --cached --quiet; then
             echo "nothing to commit"
           else

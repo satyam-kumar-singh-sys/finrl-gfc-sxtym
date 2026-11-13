@@ -127,6 +127,16 @@ Manual trigger: **Actions → live-paper-trading → Run workflow**
 * **Weekly:** check `logs/trades.csv` (each rebalance is one line per order) and
   confirm the equity chart in `figs/live_equity.png` still looks like the same
   strategy you backtested.
+* **Optional public dashboard:** repo **Settings → Pages → Source: Deploy from a
+  branch → Branch: `main`, folder `/docs` → Save**. About a minute later
+  `https://<your-user>.github.io/finrl-gfc-sxtym/` serves a self-contained page
+  (equity curve, current target, health, recent orders) rebuilt every session by
+  `scripts/dashboard.py`. No keys, no server, nothing to maintain — and it is
+  good evidence for the documentation score.
+* **Health checks:** `python -m scripts.monitor` runs five tests (fresh data, run
+  cadence, drawdown budget, trading activity, signal sanity) and writes
+  `results/health.md`. The `daily-report` workflow runs it daily and opens an
+  issue if something fails. Run it by hand any time you are unsure.
 * **Never** edit the strategy mid-run. The rules require no manual intervention
   during execution. If you must change something, do it between live periods,
   date it in `CHANGELOG.md`, and restart the 30-day clock.
@@ -144,6 +154,27 @@ Manual trigger: **Actions → live-paper-trading → Run workflow**
 | yfinance returns empty frames | Yahoo rate-limit | the loader retries and falls back to `data/cache`; re-run later |
 | Workflow commits fail with `Permission denied` | `permissions: contents: write` missing | it is set in `live.yml`; check branch protection |
 | `git pull --rebase` conflict on logs | two runs raced | `concurrency: ata-trading` prevents it; re-run the job |
+
+## 8b. Getting notified when something breaks
+
+There is no "Actions" checkbox in the Watch dialog on current GitHub, so the
+reliable paths are:
+
+1. **Issues (recommended, already wired up).** Both workflows open a GitHub issue
+   when a run fails or a health check fails. Watching "Issues" therefore gives you
+   an email: **Watch → Custom → Issues → Apply**. Issues are also permanent
+   evidence that you noticed and handled problems.
+2. **GitHub mobile app** — install it and allow notifications; issue alerts
+   arrive as push notifications.
+3. **Global Actions emails** — <https://github.com/settings/notifications> →
+   *Actions* → "Only notify for failed workflows". Applies to every repo you own.
+4. **Nothing at all** — acceptable too. The daily-report workflow means a silent
+   failure shows up as a missing `report:` commit, and the health check will
+   flag it the next day at the latest.
+
+What you do **not** need: a server, a phone-integrated monitoring service, or a
+Slack/Discord webhook. For a strategy that trades once a session, an issue is the
+right size of alert.
 
 ## 9. Cost & limits
 

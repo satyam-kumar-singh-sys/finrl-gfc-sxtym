@@ -30,6 +30,8 @@ concentrate, and it will not shake when the market shakes.
 | "How did it actually do?" | `scripts/report.py` | Turns the daily log into a chart and the Sharpe / drawdown table. |
 | "Is anything broken?" | `tests/test_adaptive_trend.py` | 18 automatic checks that run in two seconds. |
 | "Who presses start every morning?" | `.github/workflows/live.yml` | GitHub's scheduler. Your laptop can stay off. |
+| "Is anything quietly broken?" | `scripts/monitor.py` | Five independent health checks; opens an issue if one fails. |
+| "Where can someone look at it?" | `scripts/dashboard.py` | Builds one self-contained web page from the logs. |
 
 ## File by file
 
@@ -88,6 +90,22 @@ Eighteen automatic checks, all on made-up prices, all offline. The interesting
 ones: *in a crash the bot really does move the money into Treasury bills*, *no
 holding ever exceeds its cap*, *the percentages never add up to more than 100%*,
 and *the same input always gives the same output*.
+
+### `scripts/monitor.py` — the overseer that watches the plumbing
+
+Not the market. It checks five things a trend strategy cannot notice about
+itself: is the data fresh, did the runs actually happen, has the loss gone past
+the backtested worst case, did any order ever reach the broker, and do the logged
+targets still look like the strategy (long only, ≤100%). It never promotes or
+demotes anything, because with ~20 daily observations a performance-based rule
+would be reacting to noise.
+
+### `scripts/dashboard.py` — one page, no server
+
+Writes a single `docs/index.html` with all styling inline and the chart embedded
+as a data URI. No CDN, no hosting dependency, no API call at view time — so it
+cannot quietly break, and it can never show a number that disagrees with the
+committed trade log. GitHub Pages can serve it directly from `/docs`.
 
 ### `.github/workflows/live.yml` — the autopilot
 

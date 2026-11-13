@@ -68,9 +68,11 @@ scripts/data.py                    cached Yahoo Finance loader (+ refresh for li
 scripts/backtest.py                net-of-cost backtest, metrics, sweep, plot
 scripts/run_daily.py               the live job: signal → compare → rebalance → log
 scripts/report.py                  live equity curve + Sharpe/Sortino/max-DD report
+scripts/monitor.py                 health checks (data, cadence, drawdown, trades, signal)
+scripts/dashboard.py               builds the self-contained docs/index.html dashboard
 tests/test_adaptive_trend.py       18 unit tests (synthetic data, no network)
 .github/workflows/live.yml         the schedule that trades the account
-.github/workflows/report.yml       the schedule that rebuilds the daily report
+.github/workflows/report.yml       daily report + health checks + dashboard build
 .github/workflows/ci.yml           tests on every push
 ```
 

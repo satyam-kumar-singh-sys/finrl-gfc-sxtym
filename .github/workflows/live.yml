@@ -45,6 +45,7 @@ concurrency:
 
 permissions:
   contents: write               # required to commit logs back to the repo
+  issues: write                 # required to open an alert issue on failure
 
 jobs:
   trade:
@@ -117,3 +118,38 @@ jobs:
       - name: Account endpoint used
         if: always()
         run: echo "trading against $APCA_BASE_URL (must contain 'paper')"
+
+# ---------------------------------------------------------------------------
+# ALERTS
+# ---------------------------------------------------------------------------
+# If the trading job fails, open an issue. This is the notification path that
+# actually works on every GitHub plan: watch "Issues" (Watch → Custom → Issues)
+# and GitHub emails you; or install the GitHub mobile app for a push.
+#
+# Why not "Watch → Actions"? Some GitHub versions no longer offer that checkbox
+# in the Watch dialog (yours does not), and per-workflow failure emails are
+# configured globally under Settings → Notifications → Actions. An issue is
+# explicit, permanent, and visible in the repository itself — better evidence
+# for the competition, too.
+#
+# `if: failure()` means this job ONLY runs when the trading job broke. On a
+# healthy day nothing here executes.
+  alert:
+    needs: trade
+    if: failure()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Open an issue describing the failure
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Trading run failed $(date -u +%Y-%m-%d)" \
+            --body "The paper-trading workflow failed on $(date -u +%Y-%m-%dT%H:%MZ).
+
+          Run log: $RUN_URL
+
+          Usual causes and fixes are in RUNBOOK.md §8. Re-run the job after fixing;
+          a missed session is not fatal for a trend strategy, a silent week is." || true
