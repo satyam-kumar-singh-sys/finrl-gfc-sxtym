@@ -12,7 +12,8 @@ publishes its own audit trail.
 | **Strategy** | Trend-gated core (SPY/QQQ) + inverse-volatility satellite book (GLD/IEF/TLT/DBC) + 12% volatility target, cash in T-bills |
 | **Backtest (2007–2026, net)** | Sharpe **0.55** · Sortino **0.67** · max drawdown **−12.4%** · Calmar 0.52 (SPY: 0.51 / 0.62 / −55.2%) |
 | **Live** | Alpaca **paper** account, market orders at 09:45 New York, zero manual intervention |
-| **Audit trail** | [`logs/decisions.csv`](logs/) · [`logs/trades.csv`](logs/) · [`results/daily_equity.csv`](results/) · [`results/live_summary.md`](results/) |
+| **Audit trail** | [`logs/decisions.csv`](logs/) · [`logs/trades.csv`](logs/) · [`results/daily_equity.csv`](results/) |
+| **Daily report** | [`results/live_summary.md`](results/) + [`figs/live_equity.png`](figs/) — rebuilt automatically every session by `daily-report` |
 | **Docs** | [STRATEGY.md](STRATEGY.md) (research record) · [RUNBOOK.md](RUNBOOK.md) (setup + operations) · [SUBMISSION.md](SUBMISSION.md) (how to submit) · [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) (**non-programmer's tour of the code**) |
 
 > Every source file opens with a plain-English explanation of what it does, why
@@ -69,6 +70,7 @@ scripts/run_daily.py               the live job: signal → compare → rebalanc
 scripts/report.py                  live equity curve + Sharpe/Sortino/max-DD report
 tests/test_adaptive_trend.py       18 unit tests (synthetic data, no network)
 .github/workflows/live.yml         the schedule that trades the account
+.github/workflows/report.yml       the schedule that rebuilds the daily report
 .github/workflows/ci.yml           tests on every push
 ```
 

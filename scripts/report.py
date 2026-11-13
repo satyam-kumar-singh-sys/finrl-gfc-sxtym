@@ -64,6 +64,12 @@ def load_equity(from_alpaca: bool = False) -> pd.Series:
     return df.groupby("date")["equity"].last().sort_index()
 
 
+# Below this many sessions, yearly figures are statistically meaningless (a
+# 4-day run can annualise to "+28%" or "Sharpe 5.2" purely by luck), so we report
+# only what the data can actually support.
+MIN_SESSIONS_FOR_ANNUALISED = 20
+
+
 def performance(eq: pd.Series, rf: float = 0.02) -> Dict[str, float]:
     """Compute the competition-relevant statistics from a daily equity curve.
 
@@ -71,6 +77,13 @@ def performance(eq: pd.Series, rf: float = 0.02) -> Dict[str, float]:
     historical numbers are directly comparable. `rf` is the "risk-free" return we
     demand before calling a return good — 2% a year, roughly what T-bills paid in
     a normal year; it is the benchmark line in the Sharpe ratio.
+
+    Early in the live period there are only a handful of sessions. Annualising
+    those would produce impressive-looking nonsense, so annualised return,
+    volatility, Sharpe, Sortino and Calmar are withheld (set to None) until there
+    are at least `MIN_SESSIONS_FOR_ANNUALISED` sessions. Total return, equity and
+    worst drawdown are always reported, because they are true regardless of
+    sample size.
     """
     r = eq.pct_change().dropna()
     if len(r) < 3:
@@ -82,21 +95,30 @@ def performance(eq: pd.Series, rf: float = 0.02) -> Dict[str, float]:
     downside = r[r < 0]
     dvol = float(downside.std(ddof=1) * math.sqrt(TD)) if len(downside) > 1 else float("nan")
     dd = float((eq / eq.cummax() - 1).min())
-    return {
+    out: Dict[str, float] = {
         "sessions": int(len(r)),
         "start": str(eq.index[0].date()),
         "end": str(eq.index[-1].date()),
         "start_equity": float(eq.iloc[0]),
         "end_equity": float(eq.iloc[-1]),
         "total_return": total,
-        "annualised_return": cagr,
-        "annualised_vol": vol,
-        "sharpe": float((r.mean() * TD - rf) / vol) if vol > 0 else float("nan"),
-        "sortino": float((r.mean() * TD - rf) / dvol) if np.isfinite(dvol) and dvol > 0 else float("nan"),
         "max_drawdown": dd,
-        "calmar": float(cagr / abs(dd)) if dd < 0 and np.isfinite(cagr) else float("nan"),
         "positive_days": float((r > 0).mean()),
+        "minimum_sessions_for_annualised": MIN_SESSIONS_FOR_ANNUALISED,
+        "provisional": bool(len(r) < MIN_SESSIONS_FOR_ANNUALISED),
     }
+    if len(r) >= MIN_SESSIONS_FOR_ANNUALISED:
+        out.update({
+            "annualised_return": cagr,
+            "annualised_vol": vol,
+            "sharpe": float((r.mean() * TD - rf) / vol) if vol > 0 else float("nan"),
+            "sortino": float((r.mean() * TD - rf) / dvol) if np.isfinite(dvol) and dvol > 0 else float("nan"),
+            "calmar": float(cagr / abs(dd)) if dd < 0 and np.isfinite(cagr) else float("nan"),
+        })
+    else:
+        out["note"] = (f"provisional: {len(r)} sessions < {MIN_SESSIONS_FOR_ANNUALISED}; "
+                       "annualised statistics withheld on purpose")
+    return out
 
 
 def benchmark(eq: pd.Series) -> Optional[pd.Series]:
@@ -161,23 +183,40 @@ def main() -> None:
     tpath = ROOT / "logs" / "trades.csv"
     if tpath.exists():
         trades = pd.read_csv(tpath)
+    provisional = bool(stats.get("provisional"))
     summary = [
         "## Live paper-trading results",
         "",
         f"- Period: **{stats.get('start')} → {stats.get('end')}** "
-        f"({stats.get('sessions')} sessions, {stats.get('sessions', 0)/TD:.2f} years)",
+        f"({stats.get('sessions')} sessions)",
         f"- Equity: **${stats.get('start_equity', 0):,.2f} → ${stats.get('end_equity', 0):,.2f}** "
         f"({stats.get('total_return', 0)*100:+.2f}%)",
-        f"- Annualised return: **{stats.get('annualised_return', 0)*100:+.2f}%**  "
-        f"· volatility {stats.get('annualised_vol', 0)*100:.2f}%",
-        f"- Sharpe: **{stats.get('sharpe', float('nan')):.2f}**  · Sortino "
-        f"**{stats.get('sortino', float('nan')):.2f}**  · max drawdown "
-        f"**{stats.get('max_drawdown', 0)*100:.2f}%**  · Calmar {stats.get('calmar', float('nan')):.2f}",
+        f"- Worst peak-to-trough so far: **{stats.get('max_drawdown', 0)*100:.2f}%**",
     ]
+    if provisional:
+        # Be explicit rather than impressive: annualising a handful of days
+        # produces numbers that are pure noise.
+        summary += [
+            "",
+            f"> **Provisional.** Only {stats.get('sessions')} sessions are logged; "
+            f"annualised return, volatility, Sharpe, Sortino and Calmar are withheld "
+            f"until {stats.get('minimum_sessions_for_annualised')} sessions exist. "
+            "A two-week Sharpe is luck, not evidence.",
+        ]
+    else:
+        summary += [
+            f"- Annualised return: **{stats.get('annualised_return', 0)*100:+.2f}%**  "
+            f"· volatility {stats.get('annualised_vol', 0)*100:.2f}%",
+            f"- Sharpe: **{stats.get('sharpe', float('nan')):.2f}**  · Sortino "
+            f"**{stats.get('sortino', float('nan')):.2f}**  · Calmar {stats.get('calmar', float('nan')):.2f}",
+        ]
     if "spy_same_period" in stats:
-        s = stats["spy_same_period"]
-        summary.append(f"- SPY over the same window: {s['total_return']*100:+.2f}% "
-                       f"(Sharpe {s['sharpe']:.2f}, max DD {s['max_drawdown']*100:.2f}%)")
+        summary.append("")                      # keep the blockquote self-contained
+        sp = stats["spy_same_period"]
+        line = f"- SPY over the same window: {sp['total_return']*100:+.2f}%"
+        if not sp.get("provisional") and "sharpe" in sp:
+            line += f" (Sharpe {sp['sharpe']:.2f}, max DD {sp['max_drawdown']*100:.2f}%)"
+        summary.append(line)
     if trades is not None and len(trades):
         summary.append(f"- Orders sent: **{len(trades)}** across {trades['symbol'].nunique()} symbols")
     (RESULTS / "live_summary.md").write_text("\n".join(summary) + "\n")

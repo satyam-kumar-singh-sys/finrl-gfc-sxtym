@@ -100,6 +100,7 @@ What happens next, automatically, every US weekday:
 |---|---|---|
 | 14:45 | 09:45 | refresh prices → compute target → rebalance if needed → commit logs |
 | 21:15 | 16:15 | post-close equity snapshot → commit `results/daily_equity.csv` |
+| 21:45 | 17:45 | `daily-report` workflow: rebuild `results/live_summary.md` + `figs/live_equity.png` |
 
 Both runs commit their logs back to the repo (`logs/`, `results/`), which is what
 makes the equity curve and trade log public and auditable.
@@ -119,10 +120,13 @@ Manual trigger: **Actions → live-paper-trading → Run workflow**
 
 ## 7. Ongoing habits
 
-* **Daily (10 seconds):** glance at the Actions tab. Red run = the alert; open
-  the log, fix, re-run manually.
-* **Weekly:** check `results/live_summary.md`; every Monday's rebalance should
-  show up in `logs/trades.csv`.
+* **Daily (10 seconds):** open `results/live_summary.md` on GitHub — it is
+  rewritten every evening with the current return, Sharpe, max drawdown and a
+  fresh equity chart. If you prefer, glance at the Actions tab instead: three
+  green ticks per weekday is the healthy state, a red cross is the alert.
+* **Weekly:** check `logs/trades.csv` (each rebalance is one line per order) and
+  confirm the equity chart in `figs/live_equity.png` still looks like the same
+  strategy you backtested.
 * **Never** edit the strategy mid-run. The rules require no manual intervention
   during execution. If you must change something, do it between live periods,
   date it in `CHANGELOG.md`, and restart the 30-day clock.

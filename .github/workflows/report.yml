@@ -1,0 +1,76 @@
+# ===========================================================================
+# THE DAILY REPORT
+# ===========================================================================
+# The trading workflow writes numbers. This one turns them into something a
+# human can read, once per session, and commits the result:
+#
+#     results/live_summary.md   a short plain-text scoreboard (open it on GitHub)
+#     results/live_metrics.json the same numbers, machine-readable
+#     figs/live_equity.png      the equity curve chart vs the S&P 500
+#
+# It runs ~30 minutes after the closing snapshot, Monday to Friday, so by the
+# evening there is always a fresh report sitting in the repository. No email, no
+# laptop, no action required.
+#
+# It needs no Alpaca keys: it reads results/daily_equity.csv, which the trading
+# workflow already committed. That also means the report can never disagree with
+# the recorded trade history.
+# ===========================================================================
+name: daily-report
+
+on:
+  schedule:
+    - cron: "45 21 * * 1-5"   # 21:45 UTC = 17:45 New York, after the close
+  workflow_dispatch:           # also runnable by hand
+
+concurrency:
+  group: ata-report
+  cancel-in-progress: false
+
+permissions:
+  contents: write              # needed to commit the report back
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # Read-only history straight from the broker, used only if the committed
+      # daily_equity.csv is missing (e.g. the very first day).
+      APCA_API_KEY: ${{ secrets.APCA_API_KEY }}
+      APCA_API_SECRET: ${{ secrets.APCA_API_SECRET }}
+      APCA_BASE_URL: https://paper-api.alpaca.markets
+      APCA_USE_PAPER_TRADING: "true"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -q -r requirements-live.txt
+
+      # Build the report from the committed equity log. This step is allowed to
+      # fail harmlessly (e.g. only one day of data so far) without breaking the
+      # workflow, so the repository never ends up in a red state for "not enough
+      # history yet".
+      - name: Build report
+        run: python -m scripts.report || echo "not enough history yet — will retry tomorrow"
+
+      - name: Publish report
+        run: |
+          git config user.name  "ata-trading-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add results figs
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "report: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase --autostash
+            git push
+          fi
