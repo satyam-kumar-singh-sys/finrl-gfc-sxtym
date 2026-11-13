@@ -3,6 +3,38 @@
 All times UTC. The live record must stay append-only: never edit past rows in
 `logs/` or `results/` — add a new entry here instead.
 
+## [1.3.2] — 2026-11-13
+### Fixed
+- A paused run (`TRADING_PAUSED`) used to exit non-zero like any blocked run,
+  which meant the workflow skipped "Publish audit trail" and opened a `bot-alert`
+  issue — i.e. a *deliberate* pause looked like a week of outages and would train
+  the operator to ignore the alarm. A run blocked **only** by the kill switch now
+  logs `action=paused`, exits 0, commits the log and raises nothing. Any other
+  blocker still fails loudly; if both are present, the fault wins
+  (`guards.pause_only`, 3 tests).
+- `logs/provenance.csv` now records `paused` rather than `blocked` for a
+  deliberate pause, so the audit trail distinguishes the two.
+
+### Documented
+- `docs/GITHUB_SETTINGS_WALKTHROUGH.md` §3b: `TRADING_PAUSED` is a *latching*
+  switch — it does not expire, nothing resets it, and forgetting it stops the run
+  indefinitely. Set it only to stop; delete it to resume. The drill ends by
+  deleting it.
+
+## [1.3.1] — 2026-11-13
+### Added
+- `docs/GITHUB_SETTINGS_WALKTHROUGH.md`: secrets vs repository variables explained
+  in plain language, exact click path, how to find the Alpaca account number, how
+  to test the kill switch deliberately, and a symptom → cause → fix table.
+  Referenced from `RUNBOOK.md` §8c.
+
+### Verified live
+- All 1.3.0 files present in the repository; CI green on `cb016ec` (63 tests);
+  Pages build green; `live-paper-trading` and `daily-report` both `active`.
+  No repository variables set yet — `APCA_EXPECTED_ACCOUNT_ID` therefore only
+  warns, which is the intended default until the first run writes the account
+  number into `logs/provenance.csv`.
+
 ## [1.3.0] — 2026-11-13
 Adopted the transferable half of a competition post-mortem (SIG Predictions Cup,
 autumn 2026), where the expensive failures were *operational*: a worker whose

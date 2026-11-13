@@ -148,3 +148,33 @@ def test_evaluate_combines_every_guard():
     assert "borrow" in joined
     assert "stale" in joined
     assert res.notes["code_sha"]
+
+
+# --------------------------------------------------------------------------- #
+# A pause is a decision, not a fault
+# --------------------------------------------------------------------------- #
+def test_pause_only_recognises_a_deliberate_pause(monkeypatch):
+    """Only the kill switch blocking = clean pause: commit the log, stay quiet."""
+    monkeypatch.setenv("TRADING_PAUSED", "true")
+    res = guards.evaluate(target={"BIL": 0.539, "SPY": 0.441}, universe={"SPY", "BIL"})
+    assert res.ok is False
+    assert guards.pause_only(res) is True
+
+
+def test_pause_only_is_false_when_a_real_fault_is_present(monkeypatch):
+    """A pause must never hide a broken account or a broken target."""
+    monkeypatch.setenv("TRADING_PAUSED", "true")
+    res = guards.evaluate(
+        info=_account(trading_blocked=True),
+        target={"SPY": 1.5},
+        universe={"SPY"},
+    )
+    assert res.ok is False
+    assert guards.pause_only(res) is False
+
+
+def test_pause_only_is_false_when_healthy(monkeypatch):
+    monkeypatch.delenv("TRADING_PAUSED", raising=False)
+    res = guards.evaluate(target={"BIL": 0.539, "SPY": 0.441}, universe={"SPY", "BIL"})
+    assert res.ok is True
+    assert guards.pause_only(res) is False

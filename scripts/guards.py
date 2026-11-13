@@ -261,6 +261,19 @@ def write_provenance(*, code_sha: str, account_number: str, action: str,
     return path
 
 
+def pause_only(result: "GuardResult") -> bool:
+    """Is this run blocked *only* by the kill switch?
+
+    The distinction matters. A deliberate pause is a normal state: the bot should
+    finish cleanly, commit its log and raise no alarm. A genuine problem (wrong
+    account, broken weights) must fail loudly. If both are true, the problem wins
+    — a pause must never hide a fault.
+    """
+    return (not result.ok) and bool(result.blockers) and all(
+        "TRADING_PAUSED" in b for b in result.blockers
+    )
+
+
 def evaluate(*, info: Optional[Mapping[str, object]] = None,
              target: Optional[Mapping[str, float]] = None,
              universe: Optional[set] = None,

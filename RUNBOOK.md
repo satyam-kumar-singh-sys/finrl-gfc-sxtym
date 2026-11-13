@@ -181,6 +181,9 @@ right size of alert.
 Three controls exist so that "stop trading" and "am I on the right account?" are
 not code changes made in a hurry.
 
+Step-by-step clicks (including what success looks like, and how to undo):
+`docs/GITHUB_SETTINGS_WALKTHROUGH.md`.
+
 ### The kill switch — stop orders, keep the record
 
 GitHub → **Settings → Secrets and variables → Actions → Variables → New
@@ -188,7 +191,7 @@ repository variable**:
 
 | Name | Value | Effect |
 |---|---|---|
-| `TRADING_PAUSED` | `true` | The bot still runs, computes and commits its log — it just sends no orders. The dashboard shows a **PAUSED** badge. Delete the variable (or set `false`) to resume. |
+| `TRADING_PAUSED` | `true` | **No orders for as long as the variable exists** — it does not expire. The run still computes, commits `logs/decisions.csv` with `action=paused`, exits cleanly (so no alert issue) and the dashboard shows **PAUSED**. Delete the variable to resume. Leave it unset in normal operation. |
 | `APCA_EXPECTED_ACCOUNT_ID` | e.g. `PA3XXXXXXXXXX` | Pins the account. If the broker reports a different account number, the run refuses to trade. Catches a rotated or wrong API key before it writes to the wrong place. Find the number in Alpaca → the account ID on the dashboard, or in `logs/provenance.csv` after the first run. |
 
 Also available locally: `export TRADING_PAUSED=true` before `python -m

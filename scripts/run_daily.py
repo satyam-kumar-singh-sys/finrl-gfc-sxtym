@@ -274,19 +274,29 @@ def rebalance(dry_run: bool = False, as_of: Optional[str] = None, force: bool = 
         expected_account=EXPECTED_ACCOUNT or None,
     )
     log.info(guard.summary())
+    paused = (not guard.ok) and guards.pause_only(guard)
     guards.write_provenance(code_sha=guard.notes.get("code_sha", ""),
                             account_number=guard.notes.get("account_number", "unknown"),
-                            action="blocked" if not guard.ok else "allowed",
+                            action="paused" if paused else ("blocked" if not guard.ok else "allowed"),
                             config=cfg_dict())
     if not guard.ok:
         append_csv(LOG_DIR / "decisions.csv", {
-            "time_utc": now_utc(), "signal_date": meta["as_of"], "action": "blocked_by_guard",
+            "time_utc": now_utc(), "signal_date": meta["as_of"],
+            "action": "paused" if paused else "blocked_by_guard",
             "dry_run": dry_run, "max_drift": "", "risk_state": meta["risk_state"],
             "vol_scaler": meta["vol_scaler"], "est_vol": meta["vol_20d_estimate"],
             "core_w": meta["core_weight"], "satellite_w": meta["satellite_weight"],
             "target": json.dumps(target, sort_keys=True),
             "gates": json.dumps({"__blockers__": guard.blockers}),
         })
+        if paused:
+            # A pause is a decision, not a fault. Exit 0 so the workflow still
+            # commits the log and does NOT open an alert issue — otherwise a
+            # deliberate pause would look like a week of outages and train you
+            # to ignore the alarm.
+            log.warning("TRADING_PAUSED is set → no orders this run. "
+                        "The log was still written. Delete the variable to resume.")
+            return
         raise SystemExit("guards blocked trading: " + "; ".join(guard.blockers))
 
     # 3) How big is the biggest gap between the two?
