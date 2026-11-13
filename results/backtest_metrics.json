@@ -1,0 +1,114 @@
+{
+  "strategy": "AdaptiveTrendAllocation",
+  "version": "1.0",
+  "sample": [
+    "2007-06-01",
+    "2026-11-12"
+  ],
+  "cost_bps": 10.0,
+  "lag_days": 1,
+  "drift_band": 0.02,
+  "metrics": {
+    "ATA v1.0 (net)": {
+      "total_return": 2.4044612427671703,
+      "cagr": 0.0651001314483457,
+      "ann_vol": 0.08549489676117124,
+      "sharpe": 0.5467027118535446,
+      "sortino": 0.6671308766226415,
+      "max_dd": -0.12435795715400366,
+      "calmar": 0.5234898750204326,
+      "win_rate_daily": 0.5566905005107252,
+      "win_rate_monthly": 0.6025641025641025,
+      "worst_month": -0.06657494209634174,
+      "best_month": 0.05788143269561141,
+      "n_sessions": 4895
+    },
+    "ATA v1.0 (gross)": {
+      "total_return": 3.060806513000623,
+      "cagr": 0.07481082661165517,
+      "ann_vol": 0.08533307150310583,
+      "sharpe": 0.6539611482417833,
+      "sortino": 0.7981747373968864,
+      "max_dd": -0.11324093486973874,
+      "calmar": 0.6606341310914662,
+      "win_rate_daily": 0.5603677221654749,
+      "win_rate_monthly": 0.6153846153846154,
+      "worst_month": -0.06473721108949326,
+      "best_month": 0.058991722612929065,
+      "n_sessions": 4895
+    },
+    "SPY (buy & hold)": {
+      "total_return": 6.056720947087151,
+      "cagr": 0.10582655742558189,
+      "ann_vol": 0.19680731961008388,
+      "sharpe": 0.5080669963982885,
+      "sortino": 0.6234213671911372,
+      "max_dd": -0.5518942764585327,
+      "calmar": 0.1917515037565955,
+      "win_rate_daily": 0.5485188968335035,
+      "win_rate_monthly": 0.6538461538461539,
+      "worst_month": -0.16518682722350497,
+      "best_month": 0.12698370060696584,
+      "n_sessions": 4895
+    },
+    "QQQ (buy & hold)": {
+      "total_return": 15.911558023543197,
+      "cagr": 0.15672000781372186,
+      "ann_vol": 0.2239113850234703,
+      "sharpe": 0.6731148838514622,
+      "sortino": 0.8725841283087998,
+      "max_dd": -0.5340403321129492,
+      "calmar": 0.293460996089291,
+      "win_rate_daily": 0.5538304392236977,
+      "win_rate_monthly": 0.6239316239316239,
+      "worst_month": -0.15576268017322037,
+      "best_month": 0.1569007481001825,
+      "n_sessions": 4895
+    },
+    "60/40 SPY-IEF": {
+      "total_return": 3.6287489380233904,
+      "cagr": 0.08207858346815211,
+      "ann_vol": 0.11311865581388413,
+      "sharpe": 0.5771755349613876,
+      "sortino": 0.7287481641666088,
+      "max_dd": -0.31393529521767627,
+      "calmar": 0.26145063877331953,
+      "win_rate_daily": 0.5517875383043922,
+      "win_rate_monthly": 0.6666666666666666,
+      "worst_month": -0.09767486704638684,
+      "best_month": 0.07756243850446798,
+      "n_sessions": 4895
+    }
+  },
+  "avg_turnover_per_session": 0.03596913299284984,
+  "avg_invested": 0.9797998046986721,
+  "config": {
+    "name": "AdaptiveTrendAllocation",
+    "core": [
+      [
+        "SPY",
+        0.45
+      ],
+      [
+        "QQQ",
+        0.25
+      ]
+    ],
+    "satellites": [
+      "GLD",
+      "IEF",
+      "TLT",
+      "DBC"
+    ],
+    "satellite_total": 0.3,
+    "cash_symbol": "BIL",
+    "trend_window": 200,
+    "mom_window": 126,
+    "mom_skip": 0,
+    "target_vol": 0.12,
+    "vol_window": 20,
+    "vol_band": 0.1,
+    "max_weight": 0.45,
+    "min_cash": 0.02
+  }
+}

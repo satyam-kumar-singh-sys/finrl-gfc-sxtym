@@ -1,0 +1,119 @@
+# ===========================================================================
+# THE AUTOPILOT
+# ===========================================================================
+# This file is what makes the strategy run by itself. GitHub reads it and, on
+# the schedule below, spins up a small temporary computer (a "runner"), runs the
+# bot once, then shuts it down. Nothing needs to be switched on at home; your
+# laptop can be closed.
+#
+# Two runs each US trading day:
+#   14:45 UTC = 09:45 New York → work out today's targets and rebalance
+#   21:15 UTC = 16:15 New York → just record the closing account value
+# (New York is 5 hours behind UTC in winter, 4 in summer, so 09:45 UTC-based is
+#  09:45 EST in winter and 10:45 EDT in summer — both safely after the open.)
+#
+# After each run it COMMITS the logs back into the repository. That is how the
+# trade log and equity curve stay public and auditable — one of the competition's
+# stated requirements. This is also why the workflow needs "contents: write".
+#
+# IMPORTANT: the two secrets APCA_API_KEY / APCA_API_SECRET must exist in
+# Settings → Secrets and variables → Actions. They are never written in this
+# file, and never stored in the repository.
+# ===========================================================================
+name: live-paper-trading
+
+on:
+  schedule:
+    - cron: "45 14 * * 1-5"   # 1-5 = Monday to Friday; 09:45 New York: trade
+    - cron: "15 21 * * 1-5"   # 16:15 New York: record the closing balance
+  workflow_dispatch:            # also allow a manual "Run workflow" button
+    inputs:
+      dry_run:
+        description: "Only plan orders (no trades placed)"
+        type: boolean
+        default: false
+      snapshot:
+        description: "Record end-of-day equity only"
+        type: boolean
+        default: false
+
+# Never let two runs overlap — two rebalances at the same moment would fight
+# over the same cash and could double-trade.
+concurrency:
+  group: ata-trading
+  cancel-in-progress: false
+
+permissions:
+  contents: write               # required to commit logs back to the repo
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20         # kill a stuck run rather than burn minutes
+    env:
+      # The two secrets are injected here as environment variables. The Python
+      # code reads them by these names (see src/config/settings.py).
+      APCA_API_KEY: ${{ secrets.APCA_API_KEY }}
+      APCA_API_SECRET: ${{ secrets.APCA_API_SECRET }}
+      # Hard-coded to the paper (pretend-money) server on purpose: even if a
+      # real key were added by mistake, the bot could not trade real money.
+      APCA_BASE_URL: https://paper-api.alpaca.markets
+      APCA_USE_PAPER_TRADING: "true"
+      DRIFT_BAND: "0.02"        # ignore moves smaller than 2% of the account
+      MIN_ORDER_NOTIONAL: "25"  # ignore orders below $25
+      PYTHONUNBUFFERED: "1"     # show log lines immediately, not at the end
+    steps:
+      # 1. Download this repository onto the temporary machine.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Install Python 3.11 and cache the downloads for speed.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # 3. Install the handful of libraries the bot needs.
+      - name: Install dependencies
+        run: pip install -q -r requirements-live.txt
+
+      # 4. Run the automatic checks first. If a test fails the job stops here,
+      #    so a broken build can never place an order.
+      - name: Pre-flight checks
+        run: python -m pytest -q tests
+
+      # 5. The morning run: decide, compare with the account, rebalance.
+      - name: Generate signal, rebalance paper account
+        if: github.event.schedule != '15 21 * * 1-5' && inputs.snapshot != true
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python -m scripts.run_daily --dry-run
+          else
+            python -m scripts.run_daily
+          fi
+
+      # 6. The evening run: record the closing balance for the equity curve.
+      - name: End-of-day equity snapshot
+        if: github.event.schedule == '15 21 * * 1-5' || inputs.snapshot == true
+        run: python -m scripts.run_daily --snapshot
+
+      # 7. Save the audit trail (logs/ and results/) back into the repository,
+      #    so anyone — including the judges — can read every decision.
+      - name: Publish audit trail
+        run: |
+          git config user.name  "ata-trading-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add logs results
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "logs: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase --autostash
+            git push
+          fi
+
+      # 8. Print which server was used, as a visible safety confirmation.
+      - name: Account endpoint used
+        if: always()
+        run: echo "trading against $APCA_BASE_URL (must contain 'paper')"
