@@ -53,6 +53,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.data import load_prices, load_vix, universe            # noqa: E402
+from scripts import guards                                           # noqa: E402
 from src.strategies.adaptive_trend import ATAConfig, AdaptiveTrendAllocationStrategy  # noqa: E402
 
 # Where the audit files live. Both folders are committed to the repo on purpose.
@@ -70,6 +71,10 @@ DRIFT_BAND = float(os.environ.get("DRIFT_BAND", "0.02"))
 LIVE_START = os.environ.get("LIVE_START", "")
 # Ignore orders smaller than this many dollars (broker minimums / rounding).
 MIN_ORDER_NOTIONAL = float(os.environ.get("MIN_ORDER_NOTIONAL", "25"))
+# Optional: pin the account. If set and the broker reports a different account
+# number, the run refuses to trade — this is how you catch a rotated or wrong
+# API key before it writes to somebody else's account.
+EXPECTED_ACCOUNT = os.environ.get("APCA_EXPECTED_ACCOUNT_ID", "").strip()
 
 # Logging: timestamped lines, useful when a GitHub Action fails at 6am.
 logging.basicConfig(level=logging.INFO,
@@ -164,6 +169,18 @@ def alpaca():
     return AlpacaManager([account])
 
 
+def cfg_dict() -> Dict[str, Any]:
+    """The strategy settings in force, as a plain dictionary.
+
+    Written into logs/provenance.csv on every run so the exact configuration
+    behind each decision is recorded next to the code fingerprint. Judges (and
+    you, in three weeks) can then prove what was running, not just what the
+    current file says.
+    """
+    from dataclasses import asdict
+    return asdict(ATAConfig())
+
+
 # =========================================================================== #
 # Step 2: work out today's target percentages
 # =========================================================================== #
@@ -243,6 +260,34 @@ def rebalance(dry_run: bool = False, as_of: Optional[str] = None, force: bool = 
                for p in positions if equity > 0}
     log.info("account equity=%.2f cash=%.2f positions=%d", equity,
              float(info.get("cash", 0) or 0), len(positions))
+
+    # 2b) THE GUARDRAIL. Before any order is considered, check the four things
+    #     that a backtest cannot check: kill switch, account identity/status,
+    #     whether the weights are sane, and whether the prices are fresh. A
+    #     blocked run still writes its log rows — the record shows the refusal.
+    guard = guards.evaluate(
+        info=info,
+        target=target,
+        universe=set(universe()),
+        signal_date=meta.get("as_of"),
+        today_ny=today_ny(),
+        expected_account=EXPECTED_ACCOUNT or None,
+    )
+    log.info(guard.summary())
+    guards.write_provenance(code_sha=guard.notes.get("code_sha", ""),
+                            account_number=guard.notes.get("account_number", "unknown"),
+                            action="blocked" if not guard.ok else "allowed",
+                            config=cfg_dict())
+    if not guard.ok:
+        append_csv(LOG_DIR / "decisions.csv", {
+            "time_utc": now_utc(), "signal_date": meta["as_of"], "action": "blocked_by_guard",
+            "dry_run": dry_run, "max_drift": "", "risk_state": meta["risk_state"],
+            "vol_scaler": meta["vol_scaler"], "est_vol": meta["vol_20d_estimate"],
+            "core_w": meta["core_weight"], "satellite_w": meta["satellite_weight"],
+            "target": json.dumps(target, sort_keys=True),
+            "gates": json.dumps({"__blockers__": guard.blockers}),
+        })
+        raise SystemExit("guards blocked trading: " + "; ".join(guard.blockers))
 
     # 3) How big is the biggest gap between the two?
     drift = max((abs(target.get(s, 0.0) - current.get(s, 0.0))

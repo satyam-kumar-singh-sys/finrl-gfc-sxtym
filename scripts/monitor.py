@@ -170,6 +170,32 @@ def check_trading_actually_happens(trades: Optional[pd.DataFrame],
                  f"{len(trades)} orders logged ({len(filled)} with a status)")
 
 
+def check_provenance(prov: Optional[pd.DataFrame]) -> Check:
+    """Did the strategy code or the trading account change mid-run?
+
+    One run, one code fingerprint and one account. If either changes after the
+    live period started, the 30-day record is no longer a record of a single
+    strategy on a single account — which is exactly the thing a judge would be
+    right to distrust. Missing file is not a failure (older runs predate it).
+    """
+    if prov is None or prov.empty:
+        return Check("provenance", True, "no provenance rows yet (pre-dates this check)")
+    shas = [s for s in prov.get("code_sha", pd.Series(dtype=str)).astype(str).unique() if s]
+    accounts = [a for a in prov.get("account_number", pd.Series(dtype=str)).astype(str).unique()
+                if a and a != "unknown"]
+    if len(shas) > 1:
+        return Check("provenance", False,
+                     f"strategy code changed mid-run: {len(shas)} fingerprints "
+                     f"({', '.join(sorted(shas))}) — the 30-day window must use one version")
+    if len(accounts) > 1:
+        return Check("provenance", False,
+                     f"more than one trading account in the log: {', '.join(sorted(accounts))}")
+    detail = f"one code version ({shas[0] if shas else 'n/a'})"
+    if accounts:
+        detail += f", one account ({accounts[0]})"
+    return Check("provenance", True, detail)
+
+
 def check_signal_sanity(decisions: Optional[pd.DataFrame]) -> Check:
     """Do the logged targets still look like the strategy (long only, <=100%)?"""
     if decisions is None or decisions.empty or "target" not in decisions:
@@ -221,6 +247,7 @@ def run_all(live_start: Optional[str] = None, today: Optional[datetime] = None) 
         check_drawdown(equity),
         check_trading_actually_happens(trades, live_start),
         check_signal_sanity(decisions),
+        check_provenance(_read_csv(LOGS / "provenance.csv")),
     ]
 
 

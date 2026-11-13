@@ -43,6 +43,9 @@ jobs:
       APCA_BASE_URL: https://paper-api.alpaca.markets
       APCA_USE_PAPER_TRADING: "true"
       PYTHONUNBUFFERED: "1"
+      # Same kill switch as the trading workflow. The report only uses it to
+      # show a truthful PAUSED badge; it never places orders.
+      TRADING_PAUSED: ${{ vars.TRADING_PAUSED }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -74,18 +77,51 @@ jobs:
       - name: Build dashboard
         run: python -m scripts.dashboard
 
-      # Open an issue if a health check failed, so the repo itself is the alert
-      # (watch "Issues" and GitHub emails you). Silently skipped when healthy.
-      - name: Raise issue when unhealthy
+      # Raise a health alert as a GitHub issue, because an issue is an email, a
+      # phone push and permanent evidence that the problem was seen.
+      #
+      # Two refinements learned the hard way elsewhere:
+      #   * ONE issue per incident. A recurring failure comments on the open
+      #     issue instead of opening a new one every evening — a week of nagging
+      #     is how alerts get ignored.
+      #   * The body says what to DO, not just that something is wrong.
+      # Closing the issue is the acknowledgement; a later failure reopens a new one.
+      - name: Raise (or update) an issue when unhealthy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if python -m scripts.monitor --quiet; then
             echo "healthy — no issue raised"
+            exit 0
+          fi
+          gh label create bot-alert --color B60205 \
+            --description "Automated trading/health alert" 2>/dev/null || true
+          # Build the alert body in /tmp: results/health.md is committed to the
+          # repository, and it must stay a clean record of the checks.
+          cp results/health.md /tmp/alert_body.md
+          {
+            echo ""
+            echo "---"
+            echo "Detected $(date -u +%Y-%m-%dT%H:%MZ). Full check list in \`results/health.md\`."
+            echo ""
+            echo "**What to do:** open RUNBOOK.md §8, match the failing check, follow the fix."
+            echo "The usual three: a missed cron run (re-run the job), stale Yahoo data"
+            echo "(re-run), or a real drawdown past the risk budget (do nothing — the"
+            echo "strategy's rules are the entry; a bad week is not a bug)."
+            echo ""
+            echo "**Close this issue when you have read it** — closing is the"
+            echo "acknowledgement, and a new failure afterwards opens a fresh issue."
+          } >> /tmp/alert_body.md
+          OPEN=$(gh issue list --state open --label bot-alert \
+                   --search "health check failed in:title" \
+                   --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN" ]; then
+            echo "already alerted in issue #$OPEN — commenting instead of duplicating"
+            gh issue comment "$OPEN" --body-file /tmp/alert_body.md
           else
             gh issue create \
               --title "Bot health check failed $(date -u +%Y-%m-%d)" \
-              --body-file results/health.md || true
+              --label bot-alert --body-file /tmp/alert_body.md
           fi
 
       - name: Publish report

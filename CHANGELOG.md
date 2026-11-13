@@ -3,6 +3,49 @@
 All times UTC. The live record must stay append-only: never edit past rows in
 `logs/` or `results/` — add a new entry here instead.
 
+## [1.3.0] — 2026-11-13
+Adopted the transferable half of a competition post-mortem (SIG Predictions Cup,
+autumn 2026), where the expensive failures were *operational*: a worker whose
+alarm died with it, orders sent to an unverified account, a dashboard that looked
+healthy while nothing ran. Those failure modes are not specific to prediction
+markets, so the fixes are now in this repo.
+
+### Added
+- `scripts/guards.py` (+ `tests/test_guards.py`, 28 tests): pre-trade guards run
+  before every rebalance — kill switch, account identity/status, target sanity
+  (no shorts, no leverage, 45% per-investment cap with Treasury-bill cash
+  exempt), and stale/future-dated signal refusal. A blocked run still logs,
+  as `blocked_by_guard`, so the refusal is part of the record.
+- **Kill switch:** repository variable `TRADING_PAUSED=true` stops orders and
+  keeps logging. **Account pin:** `APCA_EXPECTED_ACCOUNT_ID` refuses to trade if
+  the broker reports a different account.
+- `logs/provenance.csv` written every run (code fingerprint, account number,
+  settings fingerprint) + `provenance` health check that fails if the strategy
+  code or the account changes mid-run.
+- `scripts/review.py` + `REVIEW_CHECKLIST.md`: the ten-minute daily review
+  (alive / trading / inside budget / same strategy / sessions logged) and a
+  documented outage drill.
+- `docs/RULES_LEDGER.md`: the competition rules mapped one-to-one to the code, the
+  study objective stated before the run, and the known in-sample limitation named.
+- `scripts/research_holdout.py` + `results/holdout_study.csv`: 36 configurations
+  chosen on 2007-2019 and evaluated on 2020-2026. Rank correlation +0.62; 36/36
+  positive in both windows; the shipped setting is 20th percentile in train and
+  above the hold-out median — i.e. not an overfit peak. Written up in
+  `STRATEGY.md` §5d.
+- Dashboard: an operational **Status** badge (LIVE / PAUSED / DRY-RUN / STALE /
+  NO DATA) derived from the files, not from optimism.
+- Alerts now open **one issue per incident** labelled `bot-alert` and comment on
+  it while it stays open; closing the issue is the acknowledgement. The alert
+  body says what to do, not just that something failed.
+
+### Deliberately not adopted
+- **Automatic promotion/demotion of strategies with capital reallocation** — the
+  same post-mortem reaches the same conclusion ("do not start with an autonomous
+  capital allocator: it automates your weakest assumptions"). At 30 daily
+  observations it would be selecting on noise.
+- **Shadow accounts / market making / external-venue fair values** — instruments
+  and venues this competition does not score; paper equities are the mandate.
+
 ## [1.2.0] — 2026-11-13
 ### Added
 - `scripts/research_universe.py` + `results/universe_comparison.csv`: nine

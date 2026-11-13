@@ -63,6 +63,18 @@ jobs:
       DRIFT_BAND: "0.02"        # ignore moves smaller than 2% of the account
       MIN_ORDER_NOTIONAL: "25"  # ignore orders below $25
       PYTHONUNBUFFERED: "1"     # show log lines immediately, not at the end
+      # --- operational safety, set as repository VARIABLES (not secrets) ---
+      # TRADING_PAUSED=true  -> keep computing and logging, send no orders.
+      #                          This is the emergency brake: no code change,
+      #                          no gap in the audit trail. Delete the variable
+      #                          (or set it to false) to resume.
+      # APCA_EXPECTED_ACCOUNT_ID=PA3XXXXXXX
+      #                       -> pin the account. If the broker reports a
+      #                          different account number the run refuses to
+      #                          trade, which catches a rotated/wrong API key
+      #                          before it writes to someone else's account.
+      TRADING_PAUSED: ${{ vars.TRADING_PAUSED }}
+      APCA_EXPECTED_ACCOUNT_ID: ${{ vars.APCA_EXPECTED_ACCOUNT_ID }}
     steps:
       # 1. Download this repository onto the temporary machine.
       - uses: actions/checkout@v6
@@ -83,6 +95,12 @@ jobs:
       #    so a broken build can never place an order.
       - name: Pre-flight checks
         run: python -m pytest -q tests
+
+      # 4b. Print the guard report (kill switch, code fingerprint) before the
+      #     bot touches the account. Cheap, and it makes the safety state
+      #     visible in the run log even when everything is fine.
+      - name: Guard report
+        run: python -m scripts.guards
 
       # 5. The morning run: decide, compare with the account, rebalance.
       - name: Generate signal, rebalance paper account
@@ -139,17 +157,33 @@ jobs:
     if: failure()
     runs-on: ubuntu-24.04
     steps:
-      - name: Open an issue describing the failure
+      # One issue per *incident*, not one per failure. A week-long outage would
+      # otherwise open five near-identical issues and a week of nagging, which is
+      # how people learn to ignore alerts. Closing the issue is the
+      # acknowledgement; if it fails again afterwards, a new issue opens.
+      - name: Open (or update) an issue describing the failure
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh issue create \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Trading run failed $(date -u +%Y-%m-%d)" \
-            --body "The paper-trading workflow failed on $(date -u +%Y-%m-%dT%H:%MZ).
+          gh label create bot-alert --repo "$GITHUB_REPOSITORY" \
+            --color B60205 --description "Automated trading/health alert" 2>/dev/null || true
+          BODY="The paper-trading workflow failed on $(date -u +%Y-%m-%dT%H:%MZ).
 
           Run log: $RUN_URL
 
-          Usual causes and fixes are in RUNBOOK.md §8. Re-run the job after fixing;
-          a missed session is not fatal for a trend strategy, a silent week is." || true
+          What to do: RUNBOOK.md §8 lists the usual causes and fixes. Re-run the job
+          after fixing. A missed session is not fatal for a trend strategy; a silent
+          week is. **Close this issue when you have read it** — closing is the
+          acknowledgement, and a new failure after that opens a fresh issue."
+          OPEN=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+                   --label bot-alert --search "Trading run failed in:title" \
+                   --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN" ]; then
+            echo "already alerted in issue #$OPEN — adding a comment instead of a new issue"
+            gh issue comment "$OPEN" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Trading run failed $(date -u +%Y-%m-%d)" \
+              --label bot-alert --body "$BODY"
+          fi

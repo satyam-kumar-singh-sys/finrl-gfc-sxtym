@@ -30,7 +30,9 @@ concentrate, and it will not shake when the market shakes.
 | "How did it actually do?" | `scripts/report.py` | Turns the daily log into a chart and the Sharpe / drawdown table. |
 | "Is anything broken?" | `tests/test_adaptive_trend.py` | 18 automatic checks that run in two seconds. |
 | "Who presses start every morning?" | `.github/workflows/live.yml` | GitHub's scheduler. Your laptop can stay off. |
-| "Is anything quietly broken?" | `scripts/monitor.py` | Five independent health checks; opens an issue if one fails. |
+| "Is anything quietly broken?" | `scripts/monitor.py` | Six independent health checks; opens an issue if one fails. |
+| "Could it trade the wrong account?" | `scripts/guards.py` | Kill switch, account pin, weight sanity, stale-data block — before any order. |
+| "What do I do every day?" | `scripts/review.py` | One screen, five questions, ten minutes. |
 | "Where can someone look at it?" | `scripts/dashboard.py` | Builds one self-contained web page from the logs. |
 
 ## File by file

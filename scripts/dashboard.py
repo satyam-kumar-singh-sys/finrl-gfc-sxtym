@@ -78,6 +78,32 @@ def _metrics(equity: pd.Series) -> Dict[str, float]:
     return out
 
 
+def _status(equity: Optional[pd.Series], decisions: Optional[pd.DataFrame],
+            trades: Optional[pd.DataFrame]) -> str:
+    """A one-word operational state, in the spirit of a trading desk.
+
+    A dashboard must never look healthy because someone opened a browser. So the
+    badge is derived from the files themselves:
+
+      PAUSED     the kill switch is on (TRADING_PAUSED) — logging, no orders
+      DRY-RUN    decisions exist but no order has ever been recorded
+      LIVE       orders exist and a snapshot is recent
+      STALE      the last snapshot is more than five days old (schedule dead)
+
+    Anything other than LIVE is worth a look; the health checks say why.
+    """
+    import os
+    if str(os.environ.get("TRADING_PAUSED", "")).strip().lower() in {"1", "true", "yes", "on", "paused"}:
+        return "PAUSED"
+    if trades is None or trades.empty:
+        return "DRY-RUN" if decisions is not None and not decisions.empty else "NO DATA"
+    if equity is not None and len(equity):
+        age = (pd.Timestamp.utcnow().tz_localize(None).normalize()
+               - pd.Timestamp(equity.index[-1]).normalize()).days
+        return "STALE" if age > 5 else "LIVE"
+    return "LIVE"
+
+
 def _table(df: pd.DataFrame, columns: List[str], limit: int = 12) -> str:
     """Render the last `limit` rows of a DataFrame as a simple HTML table."""
     if df is None or df.empty:
@@ -149,6 +175,7 @@ def build() -> Path:
         if "sharpe" in m:
             cards.append(("Sharpe", f"{m['sharpe']:.2f}"))
     cards.append(("Sessions logged", str(m.get("sessions", 0))))
+    cards.append(("Status", _status(eq_series, decisions, trades)))
     if health:
         cards.append(("Health", "OK" if health.get("ok") else "CHECK"))
     card_html = "".join(

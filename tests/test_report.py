@@ -60,3 +60,31 @@ def test_ratios_appear_only_after_the_minimum_sample():
 def test_drawdown_is_measured_from_the_peak():
     stats = performance(_curve([100_000.0, 110_000.0, 99_000.0, 101_000.0]))
     assert stats["max_drawdown"] == pytest.approx(-0.10, abs=1e-9)
+
+
+# --------------------------------------------------------------------------- #
+# The dashboard's operational badge must never say "LIVE" out of politeness.
+# --------------------------------------------------------------------------- #
+def test_dashboard_status_badge_reflects_files(monkeypatch):
+    from scripts.dashboard import _status
+
+    idx = pd.to_datetime(["2026-11-12"])
+    eq = pd.Series([100_000.0], index=idx)
+    decisions = pd.DataFrame({"action": ["hold"]})
+    trades = pd.DataFrame({"symbol": ["SPY"]})
+
+    monkeypatch.delenv("TRADING_PAUSED", raising=False)
+    assert _status(None, None, None) == "NO DATA"
+    assert _status(None, decisions, None) == "DRY-RUN"
+    assert _status(eq, decisions, trades) == "LIVE"
+
+    monkeypatch.setenv("TRADING_PAUSED", "true")
+    assert _status(eq, decisions, trades) == "PAUSED"
+
+
+def test_dashboard_status_marks_a_dead_schedule_as_stale(monkeypatch):
+    from scripts.dashboard import _status
+
+    monkeypatch.delenv("TRADING_PAUSED", raising=False)
+    old = pd.Series([100_000.0], index=pd.to_datetime(["2020-01-02"]))
+    assert _status(old, pd.DataFrame({"a": [1]}), pd.DataFrame({"symbol": ["SPY"]})) == "STALE"

@@ -176,6 +176,66 @@ What you do **not** need: a server, a phone-integrated monitoring service, or a
 Slack/Discord webhook. For a strategy that trades once a session, an issue is the
 right size of alert.
 
+## 8c. The safety switches (added 2026-11-13)
+
+Three controls exist so that "stop trading" and "am I on the right account?" are
+not code changes made in a hurry.
+
+### The kill switch — stop orders, keep the record
+
+GitHub → **Settings → Secrets and variables → Actions → Variables → New
+repository variable**:
+
+| Name | Value | Effect |
+|---|---|---|
+| `TRADING_PAUSED` | `true` | The bot still runs, computes and commits its log — it just sends no orders. The dashboard shows a **PAUSED** badge. Delete the variable (or set `false`) to resume. |
+| `APCA_EXPECTED_ACCOUNT_ID` | e.g. `PA3XXXXXXXXXX` | Pins the account. If the broker reports a different account number, the run refuses to trade. Catches a rotated or wrong API key before it writes to the wrong place. Find the number in Alpaca → the account ID on the dashboard, or in `logs/provenance.csv` after the first run. |
+
+Also available locally: `export TRADING_PAUSED=true` before `python -m
+scripts.run_daily`, or `python -m scripts.guards` to see the current verdict.
+
+### Pre-trade guards — what they refuse
+
+`scripts/guards.py` runs before every rebalance and blocks the trade (while still
+logging the refusal as `blocked_by_guard`) if any of these is true:
+
+1. the kill switch is on;
+2. the account is not `ACTIVE`, is flagged `trading_blocked`/`account_blocked`,
+   or is not the pinned account;
+3. the target has a negative weight, adds up to more than 100%, contains a
+   ticker outside the universe, or puts more than 45% in one *investment*
+   (Treasury-bill cash is exempt — 54% in BIL is the strategy working);
+4. the signal is older than 5 days, or dated in the future.
+
+Read-only check any time: `python -m scripts.guards`. Tests: `tests/test_guards.py`.
+
+### Provenance — proving nothing changed mid-run
+
+Every run appends to `logs/provenance.csv`: a fingerprint of the strategy code,
+the account number, and a fingerprint of the settings. The health check fails if
+either the code or the account changes during the live window — the 30-day record
+must describe one strategy on one account. `python -m scripts.review` (check 4)
+prints it in one line.
+
+### Alerts: one issue per incident, closing = acknowledgement
+
+Both workflows open an issue labelled `bot-alert` when something fails. A repeat
+failure **comments on the existing open issue** instead of opening another one —
+a week-long outage should not produce five issues and a reason to ignore them.
+Closing the issue is the acknowledgement; a failure after that opens a new one.
+`REVIEW_CHECKLIST.md` has a ten-minute outage drill so you know the alarm reaches
+you before you need it.
+
+### The daily ten minutes
+
+```bash
+python -m scripts.review
+```
+
+One screen: alive? trading? inside the risk budget? still the same strategy?
+how many of the 30 sessions are logged? Exit code 1 prints the single line that
+needs you. See `REVIEW_CHECKLIST.md`.
+
 ## 9. Cost & limits
 
 * Alpaca paper trading: free, no market-data subscription needed (IEX feed is

@@ -14,12 +14,16 @@ publishes its own audit trail.
 | **Live** | Alpaca **paper** account, market orders at 09:45 New York, zero manual intervention |
 | **Audit trail** | [`logs/decisions.csv`](logs/) · [`logs/trades.csv`](logs/) · [`results/daily_equity.csv`](results/) |
 | **Daily report** | [`results/live_summary.md`](results/) + [`figs/live_equity.png`](figs/) — rebuilt automatically every session by `daily-report` |
-| **Docs** | [STRATEGY.md](STRATEGY.md) (research record) · [RUNBOOK.md](RUNBOOK.md) (setup + operations) · [SUBMISSION.md](SUBMISSION.md) (how to submit) · [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) (**non-programmer's tour of the code**) |
+| **Docs** | [STRATEGY.md](STRATEGY.md) (research record) · [RUNBOOK.md](RUNBOOK.md) (setup + operations) · [SUBMISSION.md](SUBMISSION.md) (how to submit) · [docs/CODE_GUIDE.md
+docs/RULES_LEDGER.md](docs/CODE_GUIDE.md
+docs/RULES_LEDGER.md) (**non-programmer's tour of the code**) |
 
 > Every source file opens with a plain-English explanation of what it does, why
 > it exists, and what it deliberately refuses to do. Reviewers who do not code
 > can read those headers alone and understand the whole system — start with
-> [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md).
+> [docs/CODE_GUIDE.md
+docs/RULES_LEDGER.md](docs/CODE_GUIDE.md
+docs/RULES_LEDGER.md).
 
 ---
 
@@ -68,8 +72,12 @@ scripts/data.py                    cached Yahoo Finance loader (+ refresh for li
 scripts/backtest.py                net-of-cost backtest, metrics, sweep, plot
 scripts/run_daily.py               the live job: signal → compare → rebalance → log
 scripts/report.py                  live equity curve + Sharpe/Sortino/max-DD report
-scripts/monitor.py                 health checks (data, cadence, drawdown, trades, signal)
+scripts/monitor.py                 health checks (data, cadence, drawdown, trades, signal, provenance)
+scripts/guards.py                  pre-trade guards: kill switch, account pin, target sanity, data freshness
+scripts/review.py                  the 10-minute daily review, one screen
 scripts/dashboard.py               builds the self-contained docs/index.html dashboard
+scripts/research_universe.py       why not a bigger universe? nine same-rules comparisons
+scripts/research_holdout.py        train 2007-2019 / hold-out 2020-2026 over 36 configurations
 tests/test_adaptive_trend.py       18 unit tests (synthetic data, no network)
 .github/workflows/live.yml         the schedule that trades the account
 .github/workflows/report.yml       daily report + health checks + dashboard build

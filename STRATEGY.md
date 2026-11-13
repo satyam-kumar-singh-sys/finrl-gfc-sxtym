@@ -237,6 +237,38 @@ would be adopted. No tested variant came close: V4 is the only near-tie (0.534)
 and it pays for that with a 0.6-point deeper drawdown and worse 2020s Sharpe
 (0.649 vs 0.777).
 
+## 5d. Train / hold-out split (did we tune into a corner?)
+
+The settings were chosen while looking at the whole history, which is the most
+common way a backtest lies. The honest check is to pretend we only had the past:
+choose a configuration using **2007-06 → 2019-12 only**, then look at what it did
+in **2020-01 → 2026-11**, a window never used for the choice.
+
+36 configurations (volatility target × trend window × satellite budget),
+`scripts/research_holdout.py` → `results/holdout_study.csv`:
+
+| | train Sharpe (2007-2019) | hold-out Sharpe (2020-2026) | hold-out rank |
+|---|---|---|---|
+| best **by train** (vol 0.15, MA 250, sat 0.30) | 0.504 | 0.791 | 9 / 36 |
+| **shipped** (vol 0.12, MA 200, sat 0.30) | 0.401 | **0.777** | 11 / 36 |
+| median configuration | — | 0.745 | — |
+| worst / best hold-out | — | 0.660 / 0.856 | — |
+
+What this does and does not show:
+
+* **The ranking is not noise.** Spearman rank correlation between train and
+  hold-out Sharpe is **+0.62**, and **36 of 36** configurations are positive in
+  both windows. A knife-edge optimum would show a correlation near zero.
+* **We did not ship the train winner.** The shipped configuration is only 20th
+  percentile *in the train window*, yet lands above the hold-out median. That is
+  what a setting chosen for robustness rather than for a backtest score looks
+  like — and it is the opposite of the usual overfitting signature (best in
+  train, mediocre out of sample).
+* **It does not prove future returns.** 2020-2026 was a friendly window for trend
+  following; every configuration did better there than in 2007-2019. The live
+  30-day record is the only genuinely out-of-sample evidence, which is exactly
+  what this repository publishes.
+
 ## 6. Known weaknesses (read this before judging the live results)
 
 1. **It lags in strong bull markets.** Beta ≈ 0.5 means it captured roughly half
