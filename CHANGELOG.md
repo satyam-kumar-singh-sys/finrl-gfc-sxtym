@@ -3,6 +3,34 @@
 All times UTC. The live record must stay append-only: never edit past rows in
 `logs/` or `results/` — add a new entry here instead.
 
+## [1.1.0] — 2026-11-13
+### Added
+- `scripts/monitor.py`: five health checks (data freshness, run cadence, drawdown
+  budget vs 1.5x the backtest worst case, broker trading activity, signal sanity)
+  writing `results/health.json` / `results/health.md`; `--quiet`, exit 1 on failure.
+- `scripts/dashboard.py`: builds a single self-contained `docs/index.html` (inline
+  CSS, base64 PNG) from `logs/` + `results/` — no CDN, no server, no API at view
+  time, so it works on GitHub Pages and in a sandboxed preview alike.
+- `tests/test_monitor.py`: 6 tests (suite: 24).
+- `.github/workflows/live.yml`: `alert` job — opens an issue when a trading run fails.
+- `.github/workflows/report.yml`: health checks + dashboard build + issue on
+  unhealthy; commits `results figs docs`.
+- `docs/.nojekyll` so the generated page is served byte-for-byte.
+
+### Fixed
+- GitHub Pages build failed on `docs/trading_calendar_guide.md`
+  ("source text contains invalid characters for the used encoding UTF-8"): the
+  file inherited from upstream was GBK-encoded. Re-saved as UTF-8 (same for
+  `examples/weight_allocation_guide.md` and `src/trading/alpaca_manager.py`,
+  which could not be imported as Python source while non-UTF-8).
+- `scripts/monitor.py`: timezone-naive/aware subtraction crashed the freshness
+  check; both sides are now normalised to naive UTC.
+
+### Not adopted (deliberately)
+- Live promotion/demotion of strategies with capital reallocation. Over ~20-30
+  daily observations the ranking difference between variants is inside the noise
+  band, so such a rule selects on luck and adds undocumented parameters.
+
 ## [1.0.0] — 2026-11-12
 ### Added
 - `src/strategies/adaptive_trend.py`: Adaptive Trend Allocation (ATA) v1.0, a
