@@ -70,6 +70,11 @@ def load_equity(from_alpaca: bool = False) -> pd.Series:
 MIN_SESSIONS_FOR_ANNUALISED = 20
 
 
+def _plural(n: int, word: str) -> str:
+    """`1 snapshot`, `25 snapshots` — small thing, but day-one output is public."""
+    return f"{n} {word}" + ("" if int(n) == 1 else "s")
+
+
 def performance(eq: pd.Series, rf: float = 0.02) -> Dict[str, float]:
     """Compute the competition-relevant statistics from a daily equity curve.
 
@@ -86,27 +91,45 @@ def performance(eq: pd.Series, rf: float = 0.02) -> Dict[str, float]:
     sample size.
     """
     r = eq.pct_change().dropna()
-    if len(r) < 3:
-        return {"sessions": int(len(r)), "note": "not enough data yet"}
-    years = len(r) / TD
-    total = float(eq.iloc[-1] / eq.iloc[0] - 1)
-    cagr = float((1 + total) ** (1 / years) - 1) if years > 0 else float("nan")
-    vol = float(r.std(ddof=1) * math.sqrt(TD))
-    downside = r[r < 0]
-    dvol = float(downside.std(ddof=1) * math.sqrt(TD)) if len(downside) > 1 else float("nan")
-    dd = float((eq / eq.cummax() - 1).min())
+
+    # ------------------------------------------------------------------ #
+    # Facts first. These are true at any sample size, even one snapshot.
+    # Getting this order right matters: on the very first evening the report
+    # used to say "Equity $0.00 -> $0.00" purely because the early return
+    # below skipped the fields the summary prints. Real balance, real dates,
+    # real drawdown — always.
+    # ------------------------------------------------------------------ #
     out: Dict[str, float] = {
-        "sessions": int(len(r)),
+        "snapshots": int(len(eq)),
+        "sessions": int(len(r)),          # return observations, one fewer than snapshots
         "start": str(eq.index[0].date()),
         "end": str(eq.index[-1].date()),
         "start_equity": float(eq.iloc[0]),
         "end_equity": float(eq.iloc[-1]),
-        "total_return": total,
-        "max_drawdown": dd,
-        "positive_days": float((r > 0).mean()),
+        "total_return": float(eq.iloc[-1] / eq.iloc[0] - 1),
+        "max_drawdown": float((eq / eq.cummax() - 1).min()),
         "minimum_sessions_for_annualised": MIN_SESSIONS_FOR_ANNUALISED,
-        "provisional": bool(len(r) < MIN_SESSIONS_FOR_ANNUALISED),
+        "provisional": True,              # provisional unless proven otherwise below
     }
+
+    # Two snapshots are not a track record: a single return has no dispersion,
+    # so every ratio would be a division by zero dressed up as a number.
+    if len(r) < 3:
+        out["note"] = (f"only {len(eq)} snapshot(s) logged; "
+                       "annualised statistics need at least 3 sessions")
+        return out
+
+    total = out["total_return"]
+    dd = out["max_drawdown"]
+    years = len(r) / TD
+    cagr = float((1 + total) ** (1 / years) - 1) if years > 0 else float("nan")
+    vol = float(r.std(ddof=1) * math.sqrt(TD))
+    downside = r[r < 0]
+    dvol = float(downside.std(ddof=1) * math.sqrt(TD)) if len(downside) > 1 else float("nan")
+    out.update({
+        "positive_days": float((r > 0).mean()),
+        "provisional": bool(len(r) < MIN_SESSIONS_FOR_ANNUALISED),
+    })
     if len(r) >= MIN_SESSIONS_FOR_ANNUALISED:
         out.update({
             "annualised_return": cagr,
@@ -156,6 +179,19 @@ def plot(eq: pd.Series, spy: Optional[pd.Series], out: Path) -> None:
     ax[1].fill_between(dd.index, dd.values * 100, 0, color="tab:red", alpha=0.35)
     ax[1].set_title("Drawdown (%)")
     ax[1].grid(alpha=0.3)
+
+    # Date labels: with a few dozen sessions matplotlib's default ticks collide
+    # ("2026-10-29 2026-11-01" on top of each other). A concise formatter keeps
+    # the axis readable from week one through the full 30-session run.
+    try:
+        import matplotlib.dates as mdates
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=8)
+        fmt = mdates.ConciseDateFormatter(locator)
+        for a in ax:
+            a.xaxis.set_major_locator(locator)
+            a.xaxis.set_major_formatter(fmt)
+    except Exception:                                    # pragma: no cover
+        pass                                              # labels are cosmetic
     fig.tight_layout()
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=130)
@@ -184,41 +220,47 @@ def main() -> None:
     if tpath.exists():
         trades = pd.read_csv(tpath)
     provisional = bool(stats.get("provisional"))
-    summary = [
-        "## Live paper-trading results",
-        "",
+
+    # Build the summary as ONE bullet list plus (optionally) one closing note.
+    # Markdown ends a list at the first blank line, so any blank line in the
+    # middle would split the facts into two disconnected lists — that is why the
+    # "Provisional" note goes last, after every bullet.
+    bullets = [
         f"- Period: **{stats.get('start')} → {stats.get('end')}** "
-        f"({stats.get('sessions')} sessions)",
+        f"({_plural(stats.get('snapshots', stats.get('sessions', 0)), 'snapshot')}, "
+        f"{_plural(stats.get('sessions', 0), 'daily return')})",
         f"- Equity: **${stats.get('start_equity', 0):,.2f} → ${stats.get('end_equity', 0):,.2f}** "
         f"({stats.get('total_return', 0)*100:+.2f}%)",
         f"- Worst peak-to-trough so far: **{stats.get('max_drawdown', 0)*100:.2f}%**",
     ]
-    if provisional:
-        # Be explicit rather than impressive: annualising a handful of days
-        # produces numbers that are pure noise.
-        summary += [
-            "",
-            f"> **Provisional.** Only {stats.get('sessions')} sessions are logged; "
-            f"annualised return, volatility, Sharpe, Sortino and Calmar are withheld "
-            f"until {stats.get('minimum_sessions_for_annualised')} sessions exist. "
-            "A two-week Sharpe is luck, not evidence.",
-        ]
-    else:
-        summary += [
+    if not provisional:
+        bullets += [
             f"- Annualised return: **{stats.get('annualised_return', 0)*100:+.2f}%**  "
             f"· volatility {stats.get('annualised_vol', 0)*100:.2f}%",
             f"- Sharpe: **{stats.get('sharpe', float('nan')):.2f}**  · Sortino "
             f"**{stats.get('sortino', float('nan')):.2f}**  · Calmar {stats.get('calmar', float('nan')):.2f}",
         ]
     if "spy_same_period" in stats:
-        summary.append("")                      # keep the blockquote self-contained
         sp = stats["spy_same_period"]
         line = f"- SPY over the same window: {sp['total_return']*100:+.2f}%"
         if not sp.get("provisional") and "sharpe" in sp:
             line += f" (Sharpe {sp['sharpe']:.2f}, max DD {sp['max_drawdown']*100:.2f}%)"
-        summary.append(line)
+        bullets.append(line)
     if trades is not None and len(trades):
-        summary.append(f"- Orders sent: **{len(trades)}** across {trades['symbol'].nunique()} symbols")
+        bullets.append(f"- Orders sent: **{len(trades)}** across {trades['symbol'].nunique()} symbols")
+
+    summary = ["## Live paper-trading results", ""] + bullets
+    if provisional:
+        # Be explicit rather than impressive: annualising a handful of days
+        # produces numbers that are pure noise.
+        summary += [
+            "",
+            f"> **Provisional.** Only {_plural(stats.get('snapshots', 0), 'snapshot')} / "
+            f"{_plural(stats.get('sessions', 0), 'daily return')} logged so far; "
+            f"annualised return, volatility, Sharpe, Sortino and Calmar are withheld "
+            f"until {stats.get('minimum_sessions_for_annualised')} sessions exist. "
+            "A two-week Sharpe is luck, not evidence.",
+        ]
     (RESULTS / "live_summary.md").write_text("\n".join(summary) + "\n")
 
     print("\n".join(summary))

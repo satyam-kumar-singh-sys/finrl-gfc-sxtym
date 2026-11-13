@@ -64,3 +64,74 @@ def test_no_trades_after_a_declared_live_start_fails():
     assert monitor.check_trading_actually_happens(empty, live_start="2026-11-01").ok is False
     trades = pd.DataFrame({"status": ["filled", "filled"]})
     assert monitor.check_trading_actually_happens(trades, live_start="2026-11-01").ok is True
+
+
+def test_cadence_is_forgiving_during_ramp_up():
+    """Day two of live trading must not raise a false alarm.
+
+    Regression guard: the steady-state quota is six decisions per fourteen days.
+    On the first evening the log holds one row, and a naive check would open a
+    GitHub issue — every evening for a week. In ramp-up we only ask that the
+    workflow is alive.
+    """
+    import pandas as pd
+    from datetime import datetime, timezone
+    from scripts.monitor import check_cadence
+
+    day_two = pd.DataFrame({"time_utc": [
+        "2026-11-12T02:50:34+00:00",
+        "2026-11-13T14:45:02+00:00",
+    ]})
+    res = check_cadence(day_two, today=datetime(2026, 11, 13, 21, 45, tzinfo=timezone.utc))
+    assert res.ok, res.detail
+    assert "ramp-up" in res.detail
+
+
+def test_cadence_still_fails_when_ramp_up_bot_is_dead():
+    """No decision for a week during ramp-up is a real failure."""
+    import pandas as pd
+    from datetime import datetime, timezone
+    from scripts.monitor import check_cadence
+
+    stale = pd.DataFrame({"time_utc": ["2026-11-01T14:45:02+00:00"]})
+    res = check_cadence(stale, today=datetime(2026, 11, 13, 21, 45, tzinfo=timezone.utc))
+    assert not res.ok
+
+
+def test_cadence_uses_full_quota_after_two_weeks():
+    """Once 14 days of history exist, the six-per-fortnight quota applies."""
+    import pandas as pd
+    from datetime import datetime, timezone
+    from scripts.monitor import check_cadence
+
+    thin = pd.DataFrame({"time_utc": [
+        "2026-10-01T14:45:02+00:00",
+        "2026-11-10T14:45:02+00:00",
+        "2026-11-12T14:45:02+00:00",
+    ]})
+    res = check_cadence(thin, today=datetime(2026, 11, 13, 21, 45, tzinfo=timezone.utc))
+    assert not res.ok
+    assert "want >= 6" in res.detail
+
+
+def test_future_dated_snapshot_is_a_failure():
+    """Negative age must not be read as "extra fresh"."""
+    import pandas as pd
+    from datetime import datetime, timezone
+    from scripts.monitor import check_freshness
+
+    eq = pd.Series([100_000.0], index=pd.to_datetime(["2026-12-31"]))
+    res = check_freshness(eq, today=datetime(2026, 11, 13, tzinfo=timezone.utc))
+    assert not res.ok
+    assert "FUTURE" in res.detail
+
+
+def test_unreadable_target_row_does_not_crash_the_monitor():
+    """The overseer reports corruption; it does not die on it."""
+    import pandas as pd
+    from scripts.monitor import check_signal_sanity
+
+    bad = pd.DataFrame({"target": ['{"SPY": 0.4} {"BIL": 0.6}']})
+    res = check_signal_sanity(bad)
+    assert not res.ok
+    assert "unreadable" in res.detail

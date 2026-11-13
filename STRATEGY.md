@@ -177,6 +177,66 @@ with roughly **half the equity beta** of SPY.
 * **No-trade band**: 0% → 0.54, 2% → 0.55, 5% → 0.55. The result is not a
   turnover artefact.
 
+## 5b. Why not a bigger universe? (asked directly, 2026-11-13)
+
+Short answer: the bot already holds **4 things on average**; on the day this was
+asked, nine of its thirteen instruments failed their up-trend test, so the honest
+allocation was 44% S&P 500 + 54% T-bills. "Only SPY and BIL" is a market state,
+not the design. And widening the menu was tested: **every wider universe scored
+worse**, because the rubric scores risk-adjusted return, and a bigger menu lowers
+the odds that the few things you hold are the best ones.
+
+Evidence, `scripts/research_universe.py` → `results/universe_comparison.csv`
+(same strategy code, same 10 bp costs, same 1-day lag, same 2% band; **only** the
+ticker list changes, 2007-06 → 2026-11):
+
+| universe | Sharpe | Sortino | max DD | Calmar | CAGR |
+|---|---|---|---|---|---|
+| **V0 shipped** (SPY/QQQ + GLD/IEF/TLT/DBC) | **0.550** | **0.660** | **−12.4%** | **0.518** | 6.4% |
+| V1 + US small caps (IWM) | 0.502 | 0.605 | −11.7% | 0.509 | 6.0% |
+| V2 + international equity (IWM, EFA) | 0.455 | 0.546 | −11.5% | 0.474 | 5.5% |
+| V3 satellites + real assets (VNQ, TIP) | 0.480 | 0.574 | −13.3% | 0.440 | 5.8% |
+| V4 satellites + credit (TIP, LQD, HYG) | 0.534 | 0.639 | −13.0% | 0.483 | 6.3% |
+| V5 wide core + wide satellites | 0.321 | 0.386 | −11.9% | 0.363 | 4.3% |
+| V6 as V5 with a 40% satellite budget | 0.328 | 0.399 | −12.1% | 0.355 | 4.3% |
+| V7 sectors as satellites (XLK/XLV/XLE/XLU/XLP) | 0.502 | 0.596 | −14.2% | 0.450 | 6.4% |
+| V8 + emerging markets, dollar, REITs | 0.428 | 0.505 | −12.5% | 0.413 | 5.2% |
+
+Two further numbers that make the point without a single ratio:
+
+* **Holdings over 19 years.** V0 averages **4.0 positions** (min 1, max 7) and
+  holds two or fewer in only **10%** of weeks. The wide variant averages 6.7 and
+  still does worse.
+* **Cost is not the reason.** Turnover is 3.4–3.7% per session across every
+  variant and costs 0.85–0.94% a year in all of them, so fees do not explain the
+  gap. Sharpe falls because extra instruments are *correlated* fillers: eight
+  slightly-worse diversifiers cannot replicate one good one.
+
+**Why the trend gate empties the book (the 2026-11-13 state).**
+
+| instrument | price vs its 200-day average | 6-month return | buys? |
+|---|---|---|---|
+| SPY | +3.9% | +1.8% | **yes** |
+| QQQ | +0.8% | −4.4% | no (momentum) |
+| IWM | +1.0% | −0.7% | no (momentum) |
+| EFA | +1.6% | +2.4% | yes (not in the shipped core) |
+| GLD | −13.0% | −16.7% | no |
+| IEF / TLT | −1.6% / −2.7% | −1.8% / −2.9% | no |
+| DBC | +3.8% | −1.4% | no (momentum) |
+| XLV / XLE / XLP | +19.2% / +8.2% / +9.5% | +30.4% / +11.1% / +9.8% | yes (not held) |
+
+That column pattern — many things below their own average, only a couple above —
+is what the design is *for*. The 27%-vol regime and the collapse in gold and tech
+momentum are exactly when a strategy that stays 100% in stocks loses its 20% of
+the score. Sitting in T-bills at 0.2% volatility until trends re-open is the
+feature, not a malfunction.
+
+**What would change the decision.** If a wider universe raised Sharpe in *all
+three* eras (2007-12 / 2013-19 / 2020-26) *and* kept the drawdown under 13%, it
+would be adopted. No tested variant came close: V4 is the only near-tie (0.534)
+and it pays for that with a 0.6-point deeper drawdown and worse 2020s Sharpe
+(0.649 vs 0.777).
+
 ## 6. Known weaknesses (read this before judging the live results)
 
 1. **It lags in strong bull markets.** Beta ≈ 0.5 means it captured roughly half

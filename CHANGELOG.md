@@ -3,6 +3,52 @@
 All times UTC. The live record must stay append-only: never edit past rows in
 `logs/` or `results/` — add a new entry here instead.
 
+## [1.2.0] — 2026-11-13
+### Added
+- `scripts/research_universe.py` + `results/universe_comparison.csv`: nine
+  same-rules universes (from 2 core + 4 satellites up to 15 instruments) compared
+  over 2007-2026. Every wider menu scored worse on Sharpe, Sortino and Calmar;
+  turnover and costs are near-identical, so the difference is correlation, not
+  fees. Written up in `STRATEGY.md` §5b, which also tabulates the 2026-11-13 gate
+  state behind the "why are we only in SPY and BIL?" question.
+- `docs/` dashboard is also served from `/docs` as before; no change.
+
+### Fixed
+- `scripts/dashboard.py`: (a) a "Current target" box stayed empty until the first
+  *live* rebalance wrote `results/last_target.json` — it now falls back to the
+  newest decision-log row; (b) timestamps rendered as
+  `2026-11-13 00:00:00T14:45:31+00:00` because pandas had parsed the column; they
+  now print as `2026-11-13 14:45 UTC`.
+- `scripts/report.py`: year/date axis labels on the equity chart collided
+  (`2026-10-29 2026-11-01`); now uses matplotlib's concise date formatter.
+- `scripts/report.py`: a blank line inside the summary split the bullet list in
+  two, so the "Provisional" note and the SPY comparison rendered as separate
+  lists. The note now always comes last.
+- `scripts/monitor.py`: "1 calendar days old" (and "1 decisions") — singular/plural
+  in the health text.
+
+## [1.1.1] — 2026-11-13
+Two fixes found by simulating the *first evening* of live trading with one
+snapshot in `results/daily_equity.csv` — i.e. exactly what tonight looks like.
+
+### Fixed
+- `scripts/report.py`: with a one-day sample the summary printed
+  `Period: None -> None` and `Equity $0.00 -> $0.00`. The early return for short
+  samples skipped the fields the summary prints. Balance, dates and drawdown are
+  now always reported; only the annualised ratios are withheld, and the
+  provisional note says why. Day-one output is public, so it should not look
+  broken.
+- `scripts/monitor.py`: `run_cadence` demanded six logged decisions per fourteen
+  days from the very first evening, so it would have opened a GitHub issue every
+  evening for a week. It is now ramp-aware: during the first fortnight it only
+  asks whether the bot is alive (>= 1 decision in five days); the full quota
+  applies once fourteen days of history exist. The switch is derived from the
+  log itself, so there is nothing to remember after week two.
+
+### Added
+- `tests/test_report.py` (4 tests) and 3 ramp-up tests in `tests/test_monitor.py`
+  covering both regressions. Suite: **31 passed**.
+
 ## [1.1.0] — 2026-11-13
 ### Added
 - `scripts/monitor.py`: five health checks (data freshness, run cadence, drawdown

@@ -87,20 +87,58 @@ def check_freshness(equity: Optional[pd.Series], today: Optional[datetime] = Non
     # Work in naive UTC dates: the CSV has dates, the clock has a timezone.
     today = pd.Timestamp(today or datetime.now(timezone.utc)).tz_localize(None)
     last = pd.Timestamp(equity.index[-1]).tz_localize(None) if equity.index.tz is None else pd.Timestamp(equity.index[-1]).tz_convert(None)
-    age = (today.normalize() - last.normalize()).days
+    age = int((today.normalize() - last.normalize()).days)
+
+    # A snapshot dated in the future is not "fresh", it is wrong: a clock skew,
+    # a hand-edited CSV, or rows written in the wrong timezone. Age alone would
+    # call that a pass (negative days <= tolerance), so catch it explicitly.
+    if age < -1:
+        return Check("fresh_data", False,
+                     f"last snapshot {last.date()} is {-age} days in the FUTURE — "
+                     "check the machine clock / timezone of whoever wrote it")
     ok = age <= MAX_SNAPSHOT_AGE_DAYS
     return Check("fresh_data", bool(ok),
-                 f"last snapshot {last.date()} ({age} calendar days old; "
-                 f"tolerance {MAX_SNAPSHOT_AGE_DAYS})")
+                 f"last snapshot {last.date()} ({age} calendar "
+                 f"{'day' if age == 1 else 'days'} old; tolerance {MAX_SNAPSHOT_AGE_DAYS})")
 
 
 def check_cadence(decisions: Optional[pd.DataFrame], today: Optional[datetime] = None) -> Check:
-    """Were decisions logged over the last two weeks? (Catches a broken workflow.)"""
+    """Were decisions logged over the last two weeks? (Catches a broken workflow.)
+
+    Two regimes, because asking for fourteen days of history on day two is a
+    false alarm, and a false alarm every evening for the first week teaches you
+    to ignore the alert — which is worse than having no alert at all.
+
+      * RAMP-UP (fewer than 14 days of history): only ask "is the bot alive?" —
+        at least one decision in the last five days.
+      * STEADY STATE: the full quota, MIN_DECISIONS_PER_TWO_WEEKS.
+
+    The switch is derived from the data itself (the first row in the log), so
+    there is no extra setting to forget and nothing to change after week two.
+    """
     if decisions is None or decisions.empty:
         return Check("run_cadence", False, "no decisions logged")
+
     today = pd.Timestamp(today or datetime.now(timezone.utc)).tz_localize(None)
+    stamps = decisions["time_utc"].astype(str)
+
+    # How old is the live record? (String slicing is safe: ISO timestamps sort.)
+    try:
+        first_day = pd.Timestamp(stamps.min()[:10])
+    except (ValueError, TypeError):
+        first_day = today
+    days_of_history = int((today.normalize() - first_day).days) + 1
+
+    if days_of_history < 14:
+        alive_cutoff = (today - pd.Timedelta(days=5)).isoformat()
+        alive = int((stamps >= alive_cutoff).sum())
+        return Check("run_cadence", alive > 0,
+                     f"ramp-up: day {days_of_history} of 14, {alive} decision"
+                     f"{'' if alive == 1 else 's'} in the last 5 days "
+                     f"(want >= 1 — just proving the workflow runs)")
+
     cutoff = (today - pd.Timedelta(days=14)).isoformat()
-    recent = decisions[decisions["time_utc"].astype(str) >= cutoff]
+    recent = decisions[stamps >= cutoff]
     ok = len(recent) >= MIN_DECISIONS_PER_TWO_WEEKS
     return Check("run_cadence", bool(ok),
                  f"{len(recent)} decisions in the last 14 days "
@@ -136,7 +174,14 @@ def check_signal_sanity(decisions: Optional[pd.DataFrame]) -> Check:
     """Do the logged targets still look like the strategy (long only, <=100%)?"""
     if decisions is None or decisions.empty or "target" not in decisions:
         return Check("signal_sanity", True, "no targets logged yet")
-    last = json.loads(decisions.iloc[-1]["target"])
+    try:
+        last = json.loads(decisions.iloc[-1]["target"])
+    except (ValueError, TypeError) as exc:
+        # A corrupt row must be *reported*, not crash the thing whose job is to
+        # report problems.
+        return Check("signal_sanity", False, f"latest target row is unreadable: {exc}")
+    if not isinstance(last, dict) or not last:
+        return Check("signal_sanity", False, "latest target row is not a weight map")
     total = sum(float(v) for v in last.values())
     negatives = [k for k, v in last.items() if float(v) < 0]
     ok = not negatives and total <= 1.0 + 1e-6 and len(last) >= 1

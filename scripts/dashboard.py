@@ -92,8 +92,17 @@ def _table(df: pd.DataFrame, columns: List[str], limit: int = 12) -> str:
 
 
 def _fmt(value) -> str:
+    """Format one cell. Timestamps are the tricky case.
+
+    pandas parses a mixed column of ISO strings into Timestamps, and printing one
+    of those gives "2026-11-13 00:00:00" — which the table then glued to the
+    remaining text as "2026-11-13 00:00:00T14:45:31+00:00". Ugly on a page the
+    judges read, so timestamps get an explicit, unambiguous rendering.
+    """
     if isinstance(value, float):
         return f"{value:,.4f}"
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.strftime("%Y-%m-%d %H:%M UTC")
     return str(value)
 
 
@@ -108,6 +117,16 @@ def build() -> Path:
     target = None
     if (RESULTS / "last_target.json").exists():
         target = json.loads((RESULTS / "last_target.json").read_text())
+    elif decisions is not None and not decisions.empty and "target" in decisions.columns:
+        # No rebalance has been recorded yet (e.g. the first runs were dry runs),
+        # but the intent is still in the decision log — show it rather than an
+        # empty box. last_target.json remains the authoritative record.
+        try:
+            target = {"as_of": str(decisions.iloc[-1].get("signal_date", "")),
+                      "target": json.loads(decisions.iloc[-1]["target"]),
+                      "source": "latest decision log row"}
+        except (ValueError, TypeError):
+            target = None
     summary = (RESULTS / "live_summary.md").read_text() if (RESULTS / "live_summary.md").exists() else ""
     bt = None
     if (RESULTS / "backtest_metrics.json").exists():
