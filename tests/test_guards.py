@@ -178,3 +178,42 @@ def test_pause_only_is_false_when_healthy(monkeypatch):
     res = guards.evaluate(target={"BIL": 0.539, "SPY": 0.441}, universe={"SPY", "BIL"})
     assert res.ok is True
     assert guards.pause_only(res) is False
+
+
+# --------------------------------------------------------------------------- #
+# Retry slots must be safe: a second cron fire in the same afternoon does nothing
+# --------------------------------------------------------------------------- #
+def test_ran_recently_detects_a_report_run(tmp_path):
+    from scripts.run_daily import ran_recently
+
+    now = pd.Timestamp.now()
+    path = tmp_path / "decisions.csv"
+    path.write_text(
+        "time_utc,signal_date,action,dry_run,target\n"
+        f"{now.isoformat(timespec='seconds')},2026-11-13,rebalance,False,{{}}\n"
+    )
+    assert ran_recently(path) is not None
+
+
+def test_ran_recently_ignores_dry_runs_and_old_rows(tmp_path):
+    from scripts.run_daily import ran_recently
+
+    now = pd.Timestamp.now()
+    path = tmp_path / "decisions.csv"
+    path.write_text(
+        "time_utc,signal_date,action,dry_run,target\n"
+        f"{now.isoformat(timespec='seconds')},2026-11-13,dry_run,True,{{}}\n"
+    )
+    assert ran_recently(path) is None          # a rehearsal must not block the real run
+
+    old = (now - pd.Timedelta(hours=5)).isoformat(timespec="seconds")
+    path.write_text(
+        "time_utc,signal_date,action,dry_run,target\n"
+        f"{old},2026-11-13,rebalance,False,{{}}\n"
+    )
+    assert ran_recently(path) is None          # yesterday's/last night's run does not block today
+
+
+def test_ran_recently_handles_a_missing_file(tmp_path):
+    from scripts.run_daily import ran_recently
+    assert ran_recently(tmp_path / "nope.csv") is None

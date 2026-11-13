@@ -239,6 +239,48 @@ One screen: alive? trading? inside the risk budget? still the same strategy?
 how many of the 30 sessions are logged? Exit code 1 prints the single line that
 needs you. See `REVIEW_CHECKLIST.md`.
 
+## 8d. When the schedule itself stops (the failure that has no error)
+
+**Symptom you will actually see:** nothing. No failed run, no email, no issue.
+The repository just stops changing. This happened on 2026-11-13: the very first
+scheduled 14:45 UTC run never fired, and `event=schedule` runs totalled **zero**.
+
+**How to check in 20 seconds:**
+
+```bash
+curl -s "https://api.github.com/repos/<owner>/<repo>/actions/runs?event=schedule" \
+  | python3 -c "import sys,json;d=json.load(sys.stdin);print('scheduled runs:',d['total_count'])"
+```
+
+Or in the browser: **Actions** → left sidebar → the workflow → the run list shows
+`schedule` next to each run. If today's session has no `schedule` run, the
+scheduler is the problem, not the bot.
+
+**Why it happens.** GitHub documents that `schedule` events can be delayed and
+that under load *queued runs may be dropped*. It is best-effort, not a contract.
+
+**What we do about it (all of it is already in the repo):**
+
+1. **Retry slots.** `live.yml` fires at 14:45, 15:15 and 15:45 UTC; the snapshot
+   at 21:15 and 21:35; the report at 21:45 and 22:15. A dropped slot costs
+   minutes, not a session. Retries are harmless: the trade job only trades the
+   *difference* to target, and it skips outright if a real decision was logged in
+   the last 90 minutes (`action=skipped_recent_run`).
+2. **Trigger it yourself** when you notice — Actions → `live-paper-trading` →
+   **Run workflow** (leave everything unticked). Takes 60 seconds, places the
+   same orders the cron would have, and the run is recorded with
+   `event=workflow_dispatch` (honest and visible, not disguised).
+3. **If it keeps happening, add an external heartbeat** (a free service such as
+   cron-job.org, or any always-on machine) that calls GitHub's API on a schedule:
+   `POST /repos/<owner>/<repo>/actions/workflows/live.yml/dispatches` with body
+   `{"ref":"main"}` and a fine-grained token scoped to that one repository with
+   **Actions: write**. Keep the token in the external service, never in this repo.
+   This is the only setup that survives GitHub's own scheduler being unreliable.
+4. **Know the cost of silence.** A missed *session* is not fatal for a weekly
+   trend strategy. A missed *week* is: the 30-session requirement is wall-clock,
+   so a dead scheduler wastes calendar days. Check the dashboard badge
+   (`STALE` = snapshot older than 5 days) or run `python -m scripts.review`.
+
 ## 9. Cost & limits
 
 * Alpaca paper trading: free, no market-data subscription needed (IEX feed is

@@ -24,8 +24,21 @@ name: live-paper-trading
 
 on:
   schedule:
-    - cron: "45 14 * * 1-5"   # 1-5 = Monday to Friday; 09:45 New York: trade
-    - cron: "15 21 * * 1-5"   # 16:15 New York: record the closing balance
+    # GitHub's scheduler is not a promise: it can run late, and under load it
+    # DROPS scheduled runs entirely (documented behaviour). On 2026-11-13 the
+    # first-ever scheduled run never fired, which is exactly that failure.
+    #
+    # So each job gets retry slots. Retries are safe by construction:
+    #   * the trade job compares the account with the target and only trades the
+    #     difference — a second run in the same afternoon finds almost no drift;
+    #   * and it now also stops outright if a real decision was logged in the
+    #     last 90 minutes (action=skipped_recent_run).
+    # A dropped slot therefore costs minutes, not a session.
+    - cron: "45 14 * * 1-5"   # 09:45 New York — trade (primary)
+    - cron: "15 15 * * 1-5"   # 10:15 New York — retry if 14:45 was dropped
+    - cron: "45 15 * * 1-5"   # 10:45 New York — last retry (closes ~11:45)
+    - cron: "15 21 * * 1-5"   # 16:15 New York — closing equity snapshot (primary)
+    - cron: "35 21 * * 1-5"   # 16:35 New York — snapshot retry
   workflow_dispatch:            # also allow a manual "Run workflow" button
     inputs:
       dry_run:
@@ -104,7 +117,7 @@ jobs:
 
       # 5. The morning run: decide, compare with the account, rebalance.
       - name: Generate signal, rebalance paper account
-        if: github.event.schedule != '15 21 * * 1-5' && inputs.snapshot != true
+        if: github.event.schedule != '15 21 * * 1-5' && github.event.schedule != '35 21 * * 1-5' && inputs.snapshot != true
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             python -m scripts.run_daily --dry-run
@@ -114,7 +127,7 @@ jobs:
 
       # 6. The evening run: record the closing balance for the equity curve.
       - name: End-of-day equity snapshot
-        if: github.event.schedule == '15 21 * * 1-5' || inputs.snapshot == true
+        if: github.event.schedule == '15 21 * * 1-5' || github.event.schedule == '35 21 * * 1-5' || inputs.snapshot == true
         run: python -m scripts.run_daily --snapshot
 
       # 7. Save the audit trail (logs/ and results/) back into the repository,

@@ -3,6 +3,23 @@
 All times UTC. The live record must stay append-only: never edit past rows in
 `logs/` or `results/` — add a new entry here instead.
 
+## [1.3.3] — 2026-11-13
+### Fixed (found live, before any trade was placed)
+- **The scheduled run never fired.** At 15:03 UTC on 2026-11-13 the repository had
+  `event=schedule` run count **zero**: the 14:45 UTC slot was silently dropped by
+  GitHub's scheduler — no failure, no email, nothing in the log. No trades, no
+  equity snapshot, and the 30-session clock had not started.
+- `live.yml` now fires the trade job at **14:45, 15:15 and 15:45 UTC**, the
+  snapshot at **21:15 and 21:35**, and `report.yml` at **21:45 and 22:15**. A
+  dropped slot costs minutes instead of a session.
+- `scripts/run_daily.py`: retry slots are safe by construction — new
+  `ran_recently()` makes a run skip entirely (`action=skipped_recent_run`) if a
+  real decision was logged in the last 90 minutes, so a second cron fire in the
+  same afternoon cannot re-balance twice. `--force` overrides. 3 tests.
+- `RUNBOOK.md` §8d: how to detect a dead scheduler in 20 seconds, the retry
+  design, manual dispatch, and the external-heartbeat fallback (fine-grained
+  token + `workflow_dispatch` API) that survives GitHub's scheduler.
+
 ## [1.3.2] — 2026-11-13
 ### Fixed
 - A paused run (`TRADING_PAUSED`) used to exit non-zero like any blocked run,

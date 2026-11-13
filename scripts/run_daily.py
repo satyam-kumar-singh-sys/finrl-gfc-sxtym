@@ -169,6 +169,39 @@ def alpaca():
     return AlpacaManager([account])
 
 
+# If a scheduled run was dropped, GitHub will try again on the next cron slot.
+# That retry must not re-balance a second time in the same afternoon, so a run
+# that finds a decision row newer than this many minutes logs and stops.
+RECENT_RUN_MINUTES = 90
+
+
+def ran_recently(decisions_path: Path, minutes: int = RECENT_RUN_MINUTES) -> Optional[str]:
+    """Was a real (non-dry) decision already logged within the last `minutes`?
+
+    Returns the timestamp of that row, or None. Used to make retry slots safe:
+    if the 14:45 UTC run succeeded and a retry fires at 15:15 UTC, the retry sees
+    a 30-minute-old row and does nothing. If the 14:45 run was *dropped* by
+    GitHub, there is no row at all and the retry trades normally.
+    """
+    if not decisions_path.exists():
+        return None
+    try:
+        df = pd.read_csv(decisions_path)
+    except (OSError, ValueError):
+        return None
+    if df.empty or "time_utc" not in df.columns:
+        return None
+    if "dry_run" in df.columns:
+        df = df[~df["dry_run"].astype(str).str.lower().isin({"true", "1"})]
+    if df.empty:
+        return None
+    last = pd.to_datetime(df["time_utc"].astype(str).str[:19], errors="coerce").max()
+    if pd.isna(last):
+        return None
+    age = (pd.Timestamp.now(tz=None) - last).total_seconds() / 60.0
+    return str(df["time_utc"].iloc[-1]) if age <= minutes else None
+
+
 def cfg_dict() -> Dict[str, Any]:
     """The strategy settings in force, as a plain dictionary.
 
@@ -299,6 +332,27 @@ def rebalance(dry_run: bool = False, as_of: Optional[str] = None, force: bool = 
             return
         raise SystemExit("guards blocked trading: " + "; ".join(guard.blockers))
 
+    # 2c) RETRY SLOTS. GitHub can drop a scheduled run under load, so the
+    #     workflow offers more than one cron slot per session. Those extra slots
+    #     are only useful if a repeat run is harmless — hence this check: if a
+    #     real decision was already logged in the last 90 minutes, stop here.
+    #     (If the earlier slot was dropped there is no such row, and this run
+    #     behaves like the first one.)
+    if not force:
+        previous = ran_recently(LOG_DIR / "decisions.csv")
+        if previous:
+            log.info("a real run already happened at %s — this is a retry slot, "
+                     "doing nothing (action=skipped_recent_run)", previous)
+            append_csv(LOG_DIR / "decisions.csv", {
+                "time_utc": now_utc(), "signal_date": meta["as_of"], "action": "skipped_recent_run",
+                "dry_run": dry_run, "max_drift": "", "risk_state": meta["risk_state"],
+                "vol_scaler": meta["vol_scaler"], "est_vol": meta["vol_20d_estimate"],
+                "core_w": meta["core_weight"], "satellite_w": meta["satellite_weight"],
+                "target": json.dumps(target, sort_keys=True),
+                "gates": json.dumps({"__note__": f"previous run {previous}"}),
+            })
+            return
+
     # 3) How big is the biggest gap between the two?
     drift = max((abs(target.get(s, 0.0) - current.get(s, 0.0))
                  for s in set(target) | set(current)), default=0.0)
@@ -362,7 +416,8 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="plan orders, place none")
     ap.add_argument("--snapshot", action="store_true", help="record end-of-day equity only")
     ap.add_argument("--date", default=None, help="signal date (default: latest close)")
-    ap.add_argument("--force", action="store_true", help="ignore the no-trade band")
+    ap.add_argument("--force", action="store_true",
+                    help="trade even if a real run already happened in the last 90 min")
     ap.add_argument("--signal-only", action="store_true",
                     help="print today's target vector and exit (no Alpaca keys needed)")
 
