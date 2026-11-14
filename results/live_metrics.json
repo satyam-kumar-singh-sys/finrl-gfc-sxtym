@@ -1,0 +1,13 @@
+{
+  "snapshots": 1,
+  "sessions": 0,
+  "start": "2026-11-13",
+  "end": "2026-11-13",
+  "start_equity": 100267.52,
+  "end_equity": 100267.52,
+  "total_return": 0.0,
+  "max_drawdown": 0.0,
+  "minimum_sessions_for_annualised": 20,
+  "provisional": true,
+  "note": "only 1 snapshot(s) logged; annualised statistics need at least 3 sessions"
+}

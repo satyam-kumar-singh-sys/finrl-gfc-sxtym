@@ -1,0 +1,36 @@
+{
+  "checked_at": "2026-11-14T01:52:13+00:00",
+  "ok": false,
+  "checks": [
+    {
+      "name": "fresh_data",
+      "ok": true,
+      "detail": "last snapshot 2026-11-13 (1 calendar day old; tolerance 5)"
+    },
+    {
+      "name": "run_cadence",
+      "ok": true,
+      "detail": "ramp-up: day 2 of 14, 5 decisions in the last 5 days (want >= 1 \u2014 just proving the workflow runs)"
+    },
+    {
+      "name": "drawdown_budget",
+      "ok": true,
+      "detail": "not enough history to measure yet"
+    },
+    {
+      "name": "trading_activity",
+      "ok": true,
+      "detail": "live start not declared; skipped"
+    },
+    {
+      "name": "signal_sanity",
+      "ok": true,
+      "detail": "latest target invests 98.0% across 2 symbols"
+    },
+    {
+      "name": "provenance",
+      "ok": false,
+      "detail": "strategy code changed mid-run: 3 fingerprints (5542f53cb781a6cc, c80e65d3e2a33bf8, cf94e07d9023dee2) \u2014 the 30-day window must use one version"
+    }
+  ]
+}
