@@ -2,3 +2,5 @@ time_utc,signal_date,action,dry_run,max_drift,risk_state,vol_scaler,est_vol,core
 2026-11-13T02:50:34+00:00,2026-11-12,dry_run,True,0.539,mixed,1.0,0.1007,0.441,0.0,"{""BIL"": 0.539, ""SPY"": 0.441}","{""SPY"": true, ""QQQ"": false, ""GLD"": false, ""IEF"": false, ""TLT"": false, ""DBC"": false}"
 2026-11-13T15:13:48+00:00,2026-11-13,rebalance,False,0.539,mixed,1.0,0.1002,0.441,0.0,"{""BIL"": 0.539, ""SPY"": 0.441}","{""SPY"": true, ""QQQ"": false, ""GLD"": false, ""IEF"": false, ""TLT"": false, ""DBC"": false}"
 2026-11-13T15:43:25+00:00,2026-11-13,skipped_recent_run,False,,mixed,1.0,0.1002,0.441,0.0,"{""BIL"": 0.539, ""SPY"": 0.441}","{""__note__"": ""previous run 2026-11-13T15:13:48+00:00""}"
+2026-11-13T20:59:11+00:00,2026-11-13,hold,False,0.0012,mixed,1.0,0.0994,0.441,0.0,"{""BIL"": 0.539, ""SPY"": 0.441}","{""SPY"": true, ""QQQ"": false, ""GLD"": false, ""IEF"": false, ""TLT"": false, ""DBC"": false}"
+2026-11-13T21:39:02+00:00,2026-11-13,skipped_recent_run,False,,mixed,1.0,0.0993,0.441,0.0,"{""BIL"": 0.539, ""SPY"": 0.441}","{""__note__"": ""previous run 2026-11-13T20:59:11+00:00""}"
