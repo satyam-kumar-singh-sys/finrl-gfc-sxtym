@@ -196,6 +196,34 @@ def check_provenance(prov: Optional[pd.DataFrame]) -> Check:
     return Check("provenance", True, detail)
 
 
+def check_declared_provenance(prov: Optional[pd.DataFrame], baseline: dict,
+                              today: Optional[datetime] = None) -> Check:
+    """Check a declared freeze window; never rewrite setup history."""
+    start = pd.Timestamp(baseline["start_utc"])
+    if start.tzinfo is None:
+        raise ValueError("start_utc must include a timezone")
+    now = pd.Timestamp(today or datetime.now(timezone.utc))
+    if now < start:
+        return Check("provenance", True,
+                     f"freeze window begins {start.isoformat()}; earlier rows retained as setup")
+    if prov is None or prov.empty or "time_utc" not in prov:
+        return Check("provenance", False, "no provenance evidence in declared freeze window")
+    times = pd.to_datetime(prov["time_utc"], utc=True, errors="coerce")
+    if times.isna().any():
+        return Check("provenance", False, "invalid provenance timestamps; cannot scope audit")
+    scoped = prov.loc[times >= start]
+    if scoped.empty:
+        return Check("provenance", False, "no provenance evidence in declared freeze window yet")
+    for column, expected in (("code_sha", baseline["code_sha"]),
+                             ("account_number", baseline["account_number"]),
+                             ("config_sha", baseline["config_sha"])):
+        if column not in scoped or not scoped[column].astype(str).eq(expected).all():
+            return Check("provenance", False, f"{column} differs from declared freeze baseline")
+    return Check("provenance", True,
+                 f"code, account and configuration match freeze baseline since {start.isoformat()}; "
+                 "setup history retained")
+
+
 def check_signal_sanity(decisions: Optional[pd.DataFrame]) -> Check:
     """Do the logged targets still look like the strategy (long only, <=100%)?"""
     if decisions is None or decisions.empty or "target" not in decisions:
@@ -241,13 +269,20 @@ def load_inputs():
 
 def run_all(live_start: Optional[str] = None, today: Optional[datetime] = None) -> List[Check]:
     equity, decisions, trades = load_inputs()
+    prov = _read_csv(LOGS / "provenance.csv")
+    baseline_path = ROOT / "config" / "evaluation_baseline.json"
+    try:
+        audit = (check_declared_provenance(prov, json.loads(baseline_path.read_text()), today)
+                 if baseline_path.exists() else check_provenance(prov))
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        audit = Check("provenance", False, f"invalid freeze baseline: {exc}")
     return [
         check_freshness(equity, today),
         check_cadence(decisions, today),
         check_drawdown(equity),
         check_trading_actually_happens(trades, live_start),
         check_signal_sanity(decisions),
-        check_provenance(_read_csv(LOGS / "provenance.csv")),
+        audit,
     ]
 
 

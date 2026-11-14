@@ -135,3 +135,30 @@ def test_unreadable_target_row_does_not_crash_the_monitor():
     res = check_signal_sanity(bad)
     assert not res.ok
     assert "unreadable" in res.detail
+
+
+def test_declared_freeze_checks_expected_values_and_keeps_setup():
+    baseline = dict(start_utc="2026-11-16T00:00:00+00:00", code_sha="frozen",
+                    account_number="paper", config_sha="config")
+    rows = pd.DataFrame([
+        dict(time_utc="2026-11-13T15:00:00Z", code_sha="setup", account_number="paper", config_sha="config"),
+        dict(time_utc="2026-11-16T15:00:00Z", code_sha="frozen", account_number="paper", config_sha="config"),
+    ])
+    now = datetime(2026, 11, 16, 16, tzinfo=timezone.utc)
+    assert monitor.check_declared_provenance(rows, baseline, now).ok
+    assert len(rows) == 2
+    for column in ("code_sha", "account_number", "config_sha"):
+        changed = rows.copy()
+        changed.loc[1, column] = "changed"
+        assert not monitor.check_declared_provenance(changed, baseline, now).ok
+
+
+def test_declared_freeze_requires_evidence_and_valid_timestamps():
+    baseline = dict(start_utc="2026-11-16T00:00:00+00:00", code_sha="frozen",
+                    account_number="paper", config_sha="config")
+    before = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    after = datetime(2026, 11, 16, 16, tzinfo=timezone.utc)
+    assert monitor.check_declared_provenance(None, baseline, before).ok
+    assert not monitor.check_declared_provenance(None, baseline, after).ok
+    assert not monitor.check_declared_provenance(pd.DataFrame([dict(time_utc="2026-11-13T15:00:00Z")]), baseline, after).ok
+    assert not monitor.check_declared_provenance(pd.DataFrame([dict(time_utc="bad")]), baseline, after).ok
