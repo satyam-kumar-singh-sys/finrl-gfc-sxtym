@@ -1,13 +1,28 @@
 {
-  "snapshots": 1,
-  "sessions": 0,
+  "snapshots": 5,
+  "sessions": 4,
   "start": "2026-11-13",
-  "end": "2026-11-13",
+  "end": "2026-11-17",
   "start_equity": 100267.52,
-  "end_equity": 100267.52,
-  "total_return": 0.0,
-  "max_drawdown": 0.0,
+  "end_equity": 99029.92,
+  "total_return": -0.012342980059744213,
+  "max_drawdown": -0.012342980059744213,
   "minimum_sessions_for_annualised": 20,
   "provisional": true,
-  "note": "only 1 snapshot(s) logged; annualised statistics need at least 3 sessions"
+  "positive_days": 0.0,
+  "note": "provisional: 4 sessions < 20; annualised statistics withheld on purpose",
+  "spy_same_period": {
+    "snapshots": 5,
+    "sessions": 4,
+    "start": "2026-11-13",
+    "end": "2026-11-17",
+    "start_equity": 754.3699951171875,
+    "end_equity": 732.4400024414062,
+    "total_return": -0.029070605694457075,
+    "max_drawdown": -0.029070605694457075,
+    "minimum_sessions_for_annualised": 20,
+    "provisional": true,
+    "positive_days": 0.0,
+    "note": "provisional: 4 sessions < 20; annualised statistics withheld on purpose"
+  }
 }
