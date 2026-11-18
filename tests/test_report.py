@@ -68,6 +68,20 @@ def test_drawdown_is_measured_from_the_peak():
 def test_dashboard_status_badge_reflects_files(monkeypatch):
     from scripts.dashboard import _status
 
+    # Freeze only the dashboard clock. A fixed snapshot without a fixed clock
+    # expired on Nov 18 and blocked all live pre-flight checks.
+    from types import SimpleNamespace
+    from scripts import dashboard
+
+    class FrozenTimestamp:
+        def __new__(cls, value):
+            return pd.Timestamp(value)
+
+        @staticmethod
+        def utcnow():
+            return pd.Timestamp("2026-11-13T12:00:00Z")
+
+    monkeypatch.setattr(dashboard, "pd", SimpleNamespace(Timestamp=FrozenTimestamp))
     idx = pd.to_datetime(["2026-11-12"])
     eq = pd.Series([100_000.0], index=idx)
     decisions = pd.DataFrame({"action": ["hold"]})
@@ -88,3 +102,27 @@ def test_dashboard_status_marks_a_dead_schedule_as_stale(monkeypatch):
     monkeypatch.delenv("TRADING_PAUSED", raising=False)
     old = pd.Series([100_000.0], index=pd.to_datetime(["2020-01-02"]))
     assert _status(old, pd.DataFrame({"a": [1]}), pd.DataFrame({"symbol": ["SPY"]})) == "STALE"
+
+
+@pytest.mark.parametrize("age, expected", [(0, "LIVE"), (5, "LIVE"), (6, "STALE")])
+@pytest.mark.parametrize("clock", ["2026-11-18T12:00:00Z", "2030-07-01T12:00:00Z"])
+def test_dashboard_freshness_boundary_is_calendar_independent(monkeypatch, age, expected, clock):
+    from types import SimpleNamespace
+    from scripts import dashboard
+
+    now = pd.Timestamp(clock)
+
+    class FrozenTimestamp:
+        def __new__(cls, value):
+            return pd.Timestamp(value)
+
+        @staticmethod
+        def utcnow():
+            return now
+
+    monkeypatch.setattr(dashboard, "pd", SimpleNamespace(Timestamp=FrozenTimestamp))
+    monkeypatch.delenv("TRADING_PAUSED", raising=False)
+    date = now.tz_localize(None).normalize() - pd.Timedelta(days=age)
+    equity = pd.Series([100000.0], index=pd.DatetimeIndex([date]))
+    assert dashboard._status(equity, pd.DataFrame({"action": ["hold"]}),
+                             pd.DataFrame({"symbol": ["SPY"]})) == expected
