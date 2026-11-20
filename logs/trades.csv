@@ -5,3 +5,5 @@ time_utc,mode,symbol,side,qty,status,order_id,fill_price
 2026-11-18T14:51:03+00:00,rebalance,BIL,buy,468.822464624,pending_new,f3eaec05-3008-4c51-bb36-669d9bb0a51b,
 2026-11-19T14:51:08+00:00,rebalance,BIL,sell,475.978855542,pending_new,7657d6ca-7f5d-414f-bd72-995e298f8c1c,
 2026-11-19T14:51:08+00:00,rebalance,SPY,buy,58.946382861,pending_new,b1863ca7-8056-47c3-9bc8-b5d4bb2e960a,
+2026-11-20T14:51:20+00:00,rebalance,SPY,sell,58.94178946,pending_new,6315612c-1030-4344-a619-18b9085362c6,
+2026-11-20T14:51:20+00:00,rebalance,BIL,buy,459.516021245,pending_new,422ad3dc-f205-4016-9c24-c60019aa0c07,
