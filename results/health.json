@@ -1,21 +1,21 @@
 {
-  "checked_at": "2026-11-20T03:19:38+00:00",
+  "checked_at": "2026-11-21T02:52:01+00:00",
   "ok": true,
   "checks": [
     {
       "name": "fresh_data",
       "ok": true,
-      "detail": "last snapshot 2026-11-19 (1 calendar day old; tolerance 5)"
+      "detail": "last snapshot 2026-11-20 (1 calendar day old; tolerance 5)"
     },
     {
       "name": "run_cadence",
       "ok": true,
-      "detail": "ramp-up: day 8 of 14, 17 decisions in the last 5 days (want >= 1 \u2014 just proving the workflow runs)"
+      "detail": "ramp-up: day 9 of 14, 20 decisions in the last 5 days (want >= 1 \u2014 just proving the workflow runs)"
     },
     {
       "name": "drawdown_budget",
       "ok": true,
-      "detail": "worst drawdown -2.89% (alert below -18.6% = 1.5x the backtest's -12.4%)"
+      "detail": "worst drawdown -2.95% (alert below -18.6% = 1.5x the backtest's -12.4%)"
     },
     {
       "name": "trading_activity",
