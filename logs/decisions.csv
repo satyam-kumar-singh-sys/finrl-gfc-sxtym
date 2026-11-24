@@ -34,3 +34,4 @@ time_utc,signal_date,action,dry_run,max_drift,risk_state,vol_scaler,est_vol,core
 2026-11-24T02:36:20+00:00,2026-11-23,skipped_recent_run,False,,defensive,1.0,0.0,0.0,0.0,"{""BIL"": 0.98}","{""__note__"": ""previous run 2026-11-24T02:15:10+00:00""}"
 2026-11-24T14:51:10+00:00,2026-11-24,hold,False,0.0001,defensive,1.0,0.0,0.0,0.0,"{""BIL"": 0.98}","{""SPY"": false, ""QQQ"": false, ""GLD"": false, ""IEF"": false, ""TLT"": false, ""DBC"": false}"
 2026-11-24T23:38:12+00:00,2026-11-24,hold,False,0.0001,defensive,1.0,0.0,0.0,0.0,"{""BIL"": 0.98}","{""SPY"": false, ""QQQ"": false, ""GLD"": false, ""IEF"": false, ""TLT"": false, ""DBC"": false}"
+2026-11-24T23:55:15+00:00,2026-11-24,skipped_recent_run,False,,defensive,1.0,0.0,0.0,0.0,"{""BIL"": 0.98}","{""__note__"": ""previous run 2026-11-24T23:38:12+00:00""}"
