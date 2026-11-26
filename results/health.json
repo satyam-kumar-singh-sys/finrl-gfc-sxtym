@@ -1,16 +1,16 @@
 {
-  "checked_at": "2026-11-25T04:54:33+00:00",
+  "checked_at": "2026-11-26T03:48:10+00:00",
   "ok": true,
   "checks": [
     {
       "name": "fresh_data",
       "ok": true,
-      "detail": "last snapshot 2026-11-24 (1 calendar day old; tolerance 5)"
+      "detail": "last snapshot 2026-11-25 (1 calendar day old; tolerance 5)"
     },
     {
       "name": "run_cadence",
       "ok": true,
-      "detail": "ramp-up: day 13 of 14, 14 decisions in the last 5 days (want >= 1 \u2014 just proving the workflow runs)"
+      "detail": "41 decisions in the last 14 days (want >= 6)"
     },
     {
       "name": "drawdown_budget",
