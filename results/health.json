@@ -1,11 +1,11 @@
 {
-  "checked_at": "2026-11-27T04:16:50+00:00",
+  "checked_at": "2026-11-28T03:34:14+00:00",
   "ok": true,
   "checks": [
     {
       "name": "fresh_data",
       "ok": true,
-      "detail": "last snapshot 2026-11-26 (1 calendar day old; tolerance 5)"
+      "detail": "last snapshot 2026-11-27 (1 calendar day old; tolerance 5)"
     },
     {
       "name": "run_cadence",
